@@ -196,21 +196,11 @@
             </div>
             <div class="calendar">
                 <h2>📅 McKenzie Family Calendar</h2>
-                <div class="event">
-                    <div class="event-time">Today, 10:00 AM</div>
-                    <div class="event-title">Team Meeting</div>
-                </div>
-                <div class="event">
-                    <div class="event-time">Today, 5:00 PM</div>
-                    <div class="event-title">Patrick - Daycare Pickup</div>
-                </div>
-                <div class="event">
-                    <div class="event-time">Tomorrow, 9:00 AM</div>
-                    <div class="event-title">Supplier call</div>
-                </div>
-                <div class="event">
-                    <div class="event-time">Wed 15th, 6:30 PM</div>
-                    <div class="event-title">Little Athletics</div>
+                <div id="calendarEvents">
+                    <div class="event">
+                        <div class="event-time">Loading events...</div>
+                        <div class="event-title"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -225,6 +215,7 @@
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
         }
+
         async function updateWeather() {
             if (typeof CONFIG === 'undefined') return;
             try {
@@ -249,10 +240,71 @@
                 console.error('Weather fetch error:', error);
             }
         }
+
+        async function updateCalendar() {
+            if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
+            try {
+                const now = new Date();
+                const timeMin = now.toISOString();
+                const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
+                
+                const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CONFIG.GOOGLE_CALENDAR.CALENDAR_ID)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=10`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const calendarDiv = document.getElementById('calendarEvents');
+                
+                if (!data.items || data.items.length === 0) {
+                    calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
+                    return;
+                }
+                
+                calendarDiv.innerHTML = data.items.map(event => {
+                    const start = event.start.dateTime || event.start.date;
+                    const startDate = new Date(start);
+                    
+                    let timeStr;
+                    if (event.start.date) {
+                        // All-day event
+                        timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
+                    } else {
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        
+                        if (startDate.toDateString() === today.toDateString()) {
+                            timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        } else if (startDate.toDateString() === tomorrow.toDateString()) {
+                            timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        } else {
+                            timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        }
+                    }
+                    
+                    return `
+                        <div class="event">
+                            <div class="event-time">${timeStr}</div>
+                            <div class="event-title">${event.summary || 'Untitled Event'}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Calendar fetch error:', error);
+                document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">Error loading calendar</div></div>';
+            }
+        }
+
         updateTime();
         setInterval(updateTime, 1000);
+        
         updateWeather();
         setInterval(updateWeather, 300000);
+        
+        updateCalendar();
+        setInterval(updateCalendar, 300000);
+        
         setTimeout(() => location.reload(), 60000);
     </script>
 </body>
