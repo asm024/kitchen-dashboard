@@ -202,7 +202,9 @@
         </div>
     </div>
     <script>
-        function updateTime() {
+        let currentAccessToken = CONFIG.GOOGLE_TASKS.ACCESS_TOKEN;
+
+function updateTime() {
     const now = new Date();
     document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', {
         hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
@@ -308,11 +310,53 @@ async function updateCalendar() {
     }
 }
 
+async function refreshAccessToken() {
+    try {
+        const response = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                client_id: CONFIG.GOOGLE_TASKS.CLIENT_ID,
+                client_secret: CONFIG.GOOGLE_TASKS.CLIENT_SECRET,
+                refresh_token: CONFIG.GOOGLE_TASKS.REFRESH_TOKEN,
+                grant_type: 'refresh_token'
+            })
+        });
+        
+        const data = await response.json();
+        if (data.access_token) {
+            currentAccessToken = data.access_token;
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Token refresh error:', error);
+        return false;
+    }
+}
+
 async function updateTasks() {
     if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_TASKS) return;
     try {
-        const listsUrl = `https://www.googleapis.com/tasks/v1/users/@me/lists?key=${CONFIG.GOOGLE_TASKS.API_KEY}`;
-        const listsResponse = await fetch(listsUrl);
+        const listsUrl = `https://www.googleapis.com/tasks/v1/users/@me/lists`;
+        const listsResponse = await fetch(listsUrl, {
+            headers: {
+                'Authorization': `Bearer ${currentAccessToken}`
+            }
+        });
+        
+        // If token expired, refresh and retry
+        if (listsResponse.status === 401) {
+            const refreshed = await refreshAccessToken();
+            if (refreshed) {
+                return await updateTasks(); // Retry with new token
+            } else {
+                throw new Error('Token refresh failed');
+            }
+        }
+        
         const listsData = await listsResponse.json();
         
         if (!listsData.items) {
@@ -327,8 +371,12 @@ async function updateTasks() {
         const kanbanHTML = [];
         for (const list of wantedLists) {
             try {
-                const tasksUrl = `https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks?key=${CONFIG.GOOGLE_TASKS.API_KEY}&maxResults=20`;
-                const tasksResponse = await fetch(tasksUrl);
+                const tasksUrl = `https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks?maxResults=20`;
+                const tasksResponse = await fetch(tasksUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${currentAccessToken}`
+                    }
+                });
                 const tasksData = await tasksResponse.json();
                 
                 const tasks = tasksData.items || [];
