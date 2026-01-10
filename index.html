@@ -221,6 +221,9 @@
         // Update immediately and then every second
         updateTime();
         setInterval(updateTime, 1000);
+        // Auto-refresh the entire page every 60 seconds (60000 milliseconds)
+        // Change to 30000 for 30 seconds, or 300000 for 5 minutes
+        setTimeout(() => location.reload(), 60000);
     </script>
 </body>
 </html>
