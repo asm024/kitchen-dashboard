@@ -146,6 +146,7 @@
         }
         .kanban-column {
             min-width: 280px;
+            flex: 1;
             background: rgba(255,255,255,0.03);
             border-radius: 10px;
             padding: 15px;
@@ -203,7 +204,6 @@
         }
         @media (orientation: portrait) {
             .header { grid-template-columns: 1fr; }
-            .kanban-board { flex-wrap: nowrap; }
         }
     </style>
 </head>
@@ -262,17 +262,16 @@
         async function updateWeather() {
             if (typeof CONFIG === 'undefined') return;
             try {
-                const url = `{{https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}}}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+                const url = 'https://api.weather.com/v2/pws/observations/current?stationId=' + CONFIG.WEATHER_UNDERGROUND.STATION_ID + '&format=json&units=m&apiKey=' + CONFIG.WEATHER_UNDERGROUND.API_KEY;
                 const response = await fetch(url);
                 const data = await response.json();
                 const obs = data.observations[0];
                 
                 document.getElementById('temp').textContent = Math.round(obs.metric.temp) + '°C';
-                document.getElementById('weatherDetails').innerHTML = `
-                    Humidity: ${obs.humidity}%<br>
-                    Wind: ${Math.round(obs.metric.windSpeed)} km/h ${obs.winddir}<br>
-                    Rain today: ${obs.metric.precipTotal}mm
-                `;
+                document.getElementById('weatherDetails').innerHTML = 
+                    'Humidity: ' + obs.humidity + '%<br>' +
+                    'Wind: ' + Math.round(obs.metric.windSpeed) + ' km/h ' + obs.winddir + '<br>' +
+                    'Rain today: ' + obs.metric.precipTotal + 'mm';
                 
                 let icon = '☀️';
                 if (obs.solarRadiation < 200) icon = '🌙';
@@ -287,7 +286,7 @@
         async function updateForecast() {
             if (typeof CONFIG === 'undefined' || !CONFIG.OPENWEATHERMAP) return;
             try {
-                const url = `{{https://api.openweathermap.org/data/2.5/forecast?lat=${CONFIG.OPENWEATHERMAP.LAT}}}&lon=${CONFIG.OPENWEATHERMAP.LON}&appid=${CONFIG.OPENWEATHERMAP.API_KEY}&units=metric`;
+                const url = 'https://api.openweathermap.org/data/2.5/forecast?lat=' + CONFIG.OPENWEATHERMAP.LAT + '&lon=' + CONFIG.OPENWEATHERMAP.LON + '&appid=' + CONFIG.OPENWEATHERMAP.API_KEY + '&units=metric';
                 const response = await fetch(url);
                 const data = await response.json();
                 
@@ -320,14 +319,12 @@
                     else if (f.icon === 'Snow') weatherIcon = '❄️';
                     else if (f.icon === 'Thunderstorm') weatherIcon = '⛈️';
                     
-                    return `
-                        <div class="forecast-day">
-                            <div class="day">${f.day}</div>
-                            <div class="icon">${weatherIcon}</div>
-                            <div class="temp">${f.temp}°C</div>
-                            <div class="rain">${f.pop}% | ${f.rain.toFixed(1)}mm</div>
-                        </div>
-                    `;
+                    return '<div class="forecast-day">' +
+                        '<div class="day">' + f.day + '</div>' +
+                        '<div class="icon">' + weatherIcon + '</div>' +
+                        '<div class="temp">' + f.temp + '°C</div>' +
+                        '<div class="rain">' + f.pop + '% | ' + f.rain.toFixed(1) + 'mm</div>' +
+                        '</div>';
                 }).join('');
                 
             } catch (error) {
@@ -351,7 +348,7 @@
                 const allEvents = [];
                 for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
                     try {
-                        const url = `{{https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId}})}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`;
+                        const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(calendarId) + '/events?key=' + CONFIG.GOOGLE_CALENDAR.API_KEY + '&timeMin=' + timeMin + '&timeMax=' + timeMax + '&singleEvents=true&orderBy=startTime&maxResults=100';
                         const response = await fetch(url);
                         const data = await response.json();
                         
@@ -359,7 +356,7 @@
                             allEvents.push(...data.items);
                         }
                     } catch (err) {
-                        console.error(`Error fetching calendar ${calendarId}:`, err);
+                        console.error('Error fetching calendar ' + calendarId + ':', err);
                     }
                 }
                 
@@ -367,7 +364,7 @@
                 allEvents.forEach(event => {
                     const start = event.start.dateTime || event.start.date;
                     const date = new Date(start);
-                    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+                    const dateKey = date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();
                     
                     if (!eventsByDate[dateKey]) {
                         eventsByDate[dateKey] = [];
@@ -384,33 +381,33 @@
                 
                 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 dayNames.forEach(day => {
-                    html += `<div class="calendar-header">${day}</div>`;
+                    html += '<div class="calendar-header">' + day + '</div>';
                 });
                 
                 const firstDayOfWeek = firstDay.getDay();
                 
                 for (let i = 0; i < firstDayOfWeek; i++) {
                     const prevDate = new Date(year, month, -(firstDayOfWeek - i - 1));
-                    html += `<div class="calendar-day other-month"><div class="day-number">${prevDate.getDate()}</div></div>`;
+                    html += '<div class="calendar-day other-month"><div class="day-number">' + prevDate.getDate() + '</div></div>';
                 }
                 
                 for (let day = 1; day <= lastDay.getDate(); day++) {
                     const date = new Date(year, month, day);
-                    const dateKey = `${year}-${month}-${day}`;
+                    const dateKey = year + '-' + month + '-' + day;
                     const isToday = date.toDateString() === now.toDateString();
                     const events = eventsByDate[dateKey] || [];
                     
-                    html += `<div class="calendar-day ${isToday ? 'today' : ''}">`;
-                    html += `<div class="day-number">${day}</div>`;
+                    html += '<div class="calendar-day ' + (isToday ? 'today' : '') + '">';
+                    html += '<div class="day-number">' + day + '</div>';
                     html += '<div class="day-events">';
                     
                     events.slice(0, 3).forEach(event => {
                         const timeStr = event.time ? event.time + ' ' : '';
-                        html += `<div class="day-event">${timeStr}${event.title}</div>`;
+                        html += '<div class="day-event">' + timeStr + event.title + '</div>';
                     });
                     
                     if (events.length > 3) {
-                        html += `<div class="day-event">+${events.length - 3} more</div>`;
+                        html += '<div class="day-event">+' + (events.length - 3) + ' more</div>';
                     }
                     
                     html += '</div></div>';
@@ -420,7 +417,7 @@
                 const remainingCells = 7 - (totalCells % 7);
                 if (remainingCells < 7) {
                     for (let i = 1; i <= remainingCells; i++) {
-                        html += `<div class="calendar-day other-month"><div class="day-number">${i}</div></div>`;
+                        html += '<div class="calendar-day other-month"><div class="day-number">' + i + '</div></div>';
                     }
                 }
                 
@@ -464,11 +461,11 @@
             try {
                 taskElement.classList.add('completing');
                 
-                const completeUrl = `{{https://www.googleapis.com/tasks/v1/lists/${listId}}}/tasks/${taskId}`;
+                const completeUrl = 'https://www.googleapis.com/tasks/v1/lists/' + listId + '/tasks/' + taskId;
                 const response = await fetch(completeUrl, {
                     method: 'PATCH',
                     headers: {
-                        'Authorization': `Bearer ${currentAccessToken}`,
+                        'Authorization': 'Bearer ' + currentAccessToken,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -496,11 +493,11 @@
             try {
                 const taskData = taskListsData[fromListId].tasks.find(t => t.id === taskId);
                 
-                const deleteUrl = `{{https://www.googleapis.com/tasks/v1/lists/${fromListId}}}/tasks/${taskId}`;
+                const deleteUrl = 'https://www.googleapis.com/tasks/v1/lists/' + fromListId + '/tasks/' + taskId;
                 const deleteResponse = await fetch(deleteUrl, {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': `Bearer ${currentAccessToken}`
+                        'Authorization': 'Bearer ' + currentAccessToken
                     }
                 });
 
@@ -509,11 +506,11 @@
                     return await moveTask(taskId, fromListId, toListId);
                 }
 
-                const createUrl = `{{https://www.googleapis.com/tasks/v1/lists/${toListId}}}/tasks`;
+                const createUrl = 'https://www.googleapis.com/tasks/v1/lists/' + toListId + '/tasks';
                 const createResponse = await fetch(createUrl, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${currentAccessToken}`,
+                        'Authorization': 'Bearer ' + currentAccessToken,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -536,7 +533,7 @@
                 const listsUrl = 'https://www.googleapis.com/tasks/v1/users/@me/lists';
                 const listsResponse = await fetch(listsUrl, {
                     headers: {
-                        'Authorization': `Bearer ${currentAccessToken}`
+                        'Authorization': 'Bearer ' + currentAccessToken
                     }
                 });
                 
@@ -565,10 +562,10 @@
                 
                 for (const list of wantedLists) {
                     try {
-                        const tasksUrl = `{{https://www.googleapis.com/tasks/v1/lists/${list.id}}}/tasks?maxResults=20`;
+                        const tasksUrl = 'https://www.googleapis.com/tasks/v1/lists/' + list.id + '/tasks?maxResults=20';
                         const tasksResponse = await fetch(tasksUrl, {
                             headers: {
-                                'Authorization': `Bearer ${currentAccessToken}`
+                                'Authorization': 'Bearer ' + currentAccessToken
                             }
                         });
                         const tasksData = await tasksResponse.json();
@@ -578,20 +575,26 @@
                         
                         taskListsData[list.id] = { title: list.title, tasks: incompleteTasks };
                         
-                        kanbanHTML.push(`
-                            <div class="kanban-column" data-list-id="${list.id}">
-                                <h3>${list.title}</h3>
-                                ${incompleteTasks.length === 0 ? '<div style="opacity: 0.5; font-size: 13px;">No tasks</div>' : ''}
-                                ${incompleteTasks.map(task => `
-                                    <div class="task-item" draggable="true" data-task-id="${task.id}" data-list-id="${list.id}">
-                                        <div class="task-checkbox" data-task-id="${task.id}" data-list-id="${list.id}"></div>
-                                        <div class="task-text">${task.title}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `);
+                        let tasksHTML = '';
+                        if (incompleteTasks.length === 0) {
+                            tasksHTML = '<div style="opacity: 0.5; font-size: 13px;">No tasks</div>';
+                        } else {
+                            tasksHTML = incompleteTasks.map(task => {
+                                return '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '">' +
+                                    '<div class="task-checkbox" data-task-id="' + task.id + '" data-list-id="' + list.id + '"></div>' +
+                                    '<div class="task-text">' + task.title + '</div>' +
+                                    '</div>';
+                            }).join('');
+                        }
+                        
+                        kanbanHTML.push(
+                            '<div class="kanban-column" data-list-id="' + list.id + '">' +
+                            '<h3>' + list.title + '</h3>' +
+                            tasksHTML +
+                            '</div>'
+                        );
                     } catch (err) {
-                        console.error(`Error fetching tasks for ${list.title}:`, err);
+                        console.error('Error fetching tasks for ' + list.title + ':', err);
                     }
                 }
                 
