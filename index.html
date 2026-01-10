@@ -16,19 +16,18 @@
         }
         .container { max-width: 1800px; margin: 0 auto; }
         .header {
-            text-align: center;
-            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
             padding-bottom: 20px;
             border-bottom: 2px solid rgba(255,255,255,0.1);
         }
-        .time { font-size: 64px; font-weight: 300; margin-bottom: 5px; }
-        .date { font-size: 24px; opacity: 0.8; }
-        .top-row {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
+        .time-section {
+            text-align: left;
         }
+        .time { font-size: 64px; font-weight: 300; margin-bottom: 5px; }
+        .date { font-size: 20px; opacity: 0.8; }
         .weather-card {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -73,6 +72,7 @@
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 15px;
             padding: 20px;
+            margin-bottom: 20px;
         }
         .calendar h2 {
             font-size: 20px;
@@ -145,7 +145,7 @@
             padding-bottom: 10px;
         }
         .kanban-column {
-            min-width: 250px;
+            min-width: 280px;
             background: rgba(255,255,255,0.03);
             border-radius: 10px;
             padding: 15px;
@@ -170,6 +170,9 @@
             border-left: 3px solid #4da6ff;
             cursor: grab;
             user-select: none;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
         }
         .task-item:active {
             cursor: grabbing;
@@ -177,20 +180,40 @@
         .task-item.dragging {
             opacity: 0.5;
         }
+        .task-item.completing {
+            opacity: 0.3;
+            text-decoration: line-through;
+        }
+        .task-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 4px;
+            flex-shrink: 0;
+            margin-top: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .task-checkbox:hover {
+            border-color: #4da6ff;
+            background: rgba(77, 166, 255, 0.1);
+        }
+        .task-text {
+            flex: 1;
+        }
         @media (orientation: portrait) {
-            .top-row { grid-template-columns: 1fr; }
-            .kanban-board { flex-direction: column; }
-            .kanban-column { min-width: 100%; }
+            .header { grid-template-columns: 1fr; }
+            .kanban-board { flex-wrap: nowrap; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="time" id="time">00:00:00</div>
-            <div class="date" id="date">Loading...</div>
-        </div>
-        <div class="top-row">
+            <div class="time-section">
+                <div class="time" id="time">00:00:00</div>
+                <div class="date" id="date">Loading...</div>
+            </div>
             <div class="weather-card">
                 <h2>🌤️ Weather</h2>
                 <div class="weather-current">
@@ -206,11 +229,11 @@
                     </div>
                 </div>
             </div>
-            <div class="calendar">
-                <h2>📅 McKenzie Family Calendar</h2>
-                <div id="calendarEvents">
-                    <div>Loading calendar...</div>
-                </div>
+        </div>
+        <div class="calendar">
+            <h2>📅 McKenzie Family Calendar</h2>
+            <div id="calendarEvents">
+                <div>Loading calendar...</div>
             </div>
         </div>
         <div class="tasks-section">
@@ -239,7 +262,7 @@
         async function updateWeather() {
             if (typeof CONFIG === 'undefined') return;
             try {
-                const url = `https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+                const url = `{{https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}}}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
                 const response = await fetch(url);
                 const data = await response.json();
                 const obs = data.observations[0];
@@ -264,7 +287,7 @@
         async function updateForecast() {
             if (typeof CONFIG === 'undefined' || !CONFIG.OPENWEATHERMAP) return;
             try {
-                const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${CONFIG.OPENWEATHERMAP.LAT}&lon=${CONFIG.OPENWEATHERMAP.LON}&appid=${CONFIG.OPENWEATHERMAP.API_KEY}&units=metric`;
+                const url = `{{https://api.openweathermap.org/data/2.5/forecast?lat=${CONFIG.OPENWEATHERMAP.LAT}}}&lon=${CONFIG.OPENWEATHERMAP.LON}&appid=${CONFIG.OPENWEATHERMAP.API_KEY}&units=metric`;
                 const response = await fetch(url);
                 const data = await response.json();
                 
@@ -328,7 +351,7 @@
                 const allEvents = [];
                 for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
                     try {
-                        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`;
+                        const url = `{{https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId}})}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`;
                         const response = await fetch(url);
                         const data = await response.json();
                         
@@ -437,11 +460,43 @@
             }
         }
 
+        async function completeTask(taskId, listId, taskElement) {
+            try {
+                taskElement.classList.add('completing');
+                
+                const completeUrl = `{{https://www.googleapis.com/tasks/v1/lists/${listId}}}/tasks/${taskId}`;
+                const response = await fetch(completeUrl, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${currentAccessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        status: 'completed'
+                    })
+                });
+
+                if (response.status === 401) {
+                    await refreshAccessToken();
+                    return await completeTask(taskId, listId, taskElement);
+                }
+
+                if (response.ok) {
+                    setTimeout(() => {
+                        taskElement.remove();
+                    }, 300);
+                }
+            } catch (error) {
+                console.error('Complete task error:', error);
+                taskElement.classList.remove('completing');
+            }
+        }
+
         async function moveTask(taskId, fromListId, toListId) {
             try {
                 const taskData = taskListsData[fromListId].tasks.find(t => t.id === taskId);
                 
-                const deleteUrl = `https://www.googleapis.com/tasks/v1/lists/${fromListId}/tasks/${taskId}`;
+                const deleteUrl = `{{https://www.googleapis.com/tasks/v1/lists/${fromListId}}}/tasks/${taskId}`;
                 const deleteResponse = await fetch(deleteUrl, {
                     method: 'DELETE',
                     headers: {
@@ -454,7 +509,7 @@
                     return await moveTask(taskId, fromListId, toListId);
                 }
 
-                const createUrl = `https://www.googleapis.com/tasks/v1/lists/${toListId}/tasks`;
+                const createUrl = `{{https://www.googleapis.com/tasks/v1/lists/${toListId}}}/tasks`;
                 const createResponse = await fetch(createUrl, {
                     method: 'POST',
                     headers: {
@@ -510,7 +565,7 @@
                 
                 for (const list of wantedLists) {
                     try {
-                        const tasksUrl = `https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks?maxResults=20`;
+                        const tasksUrl = `{{https://www.googleapis.com/tasks/v1/lists/${list.id}}}/tasks?maxResults=20`;
                         const tasksResponse = await fetch(tasksUrl, {
                             headers: {
                                 'Authorization': `Bearer ${currentAccessToken}`
@@ -529,7 +584,8 @@
                                 ${incompleteTasks.length === 0 ? '<div style="opacity: 0.5; font-size: 13px;">No tasks</div>' : ''}
                                 ${incompleteTasks.map(task => `
                                     <div class="task-item" draggable="true" data-task-id="${task.id}" data-list-id="${list.id}">
-                                        ${task.title}
+                                        <div class="task-checkbox" data-task-id="${task.id}" data-list-id="${list.id}"></div>
+                                        <div class="task-text">${task.title}</div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -541,11 +597,25 @@
                 
                 document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join('');
                 setupDragAndDrop();
+                setupCheckboxes();
                 
             } catch (error) {
                 console.error('Tasks fetch error:', error);
                 document.getElementById('kanbanBoard').innerHTML = '<div class="kanban-column"><h3>Error loading tasks</h3></div>';
             }
+        }
+
+        function setupCheckboxes() {
+            const checkboxes = document.querySelectorAll('.task-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const taskId = checkbox.dataset.taskId;
+                    const listId = checkbox.dataset.listId;
+                    const taskElement = checkbox.closest('.task-item');
+                    completeTask(taskId, listId, taskElement);
+                });
+            });
         }
 
         function setupDragAndDrop() {
