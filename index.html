@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kitchen Dashboard</title>
+    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -46,7 +47,7 @@
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 30px;
         }
-        /* Portrait mode adjustments */
+
         @media (orientation: portrait) {
             body {
                 padding: 20px;
@@ -142,18 +143,15 @@
         </div>
 
         <div class="grid">
-            <!-- Weather Card -->
             <div class="card">
                 <h2>🌤️ Weather</h2>
                 <div class="weather-icon">☀️</div>
                 <div class="temp">24°C</div>
                 <div class="weather-details">
-                    <p>Partly Cloudy</p>
-                    <p>Humidity: 65% • Wind: 12 km/h</p>
+                    <p>Loading weather...</p>
                 </div>
             </div>
 
-            <!-- Calendar Card -->
             <div class="card">
                 <h2>📅 Today's Events</h2>
                 <div class="calendar-item">
@@ -166,7 +164,6 @@
                 </div>
             </div>
 
-            <!-- To-Do List Card -->
             <div class="card">
                 <h2>✅ To-Do List</h2>
                 <div class="todo-item">
@@ -186,7 +183,7 @@
                 <div class="todo-item">
                     <div class="checkbox"></div>
                     <div>
-                        <h3>Organize shed</h3>
+                        <h3>Organise shed</h3>
                         <p>Priority: Low</p>
                     </div>
                 </div>
@@ -195,11 +192,8 @@
     </div>
 
     <script>
-        // Update time and date
         function updateTime() {
             const now = new Date();
-            
-            // Format time
             const timeString = now.toLocaleTimeString('en-AU', {
                 hour: 'numeric',
                 minute: '2-digit',
@@ -208,7 +202,6 @@
             });
             document.getElementById('time').textContent = timeString;
             
-            // Format date
             const dateString = now.toLocaleDateString('en-AU', {
                 weekday: 'long',
                 year: 'numeric',
@@ -218,11 +211,43 @@
             document.getElementById('date').textContent = dateString;
         }
 
-        // Update immediately and then every second
+        async function updateWeather() {
+            if (typeof CONFIG === 'undefined') {
+                // config.js not found, show placeholder
+                return;
+            }
+            
+            try {
+                const url = `https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                const obs = data.observations[0];
+                
+                document.querySelector('.temp').textContent = Math.round(obs.metric.temp) + '°C';
+                document.querySelector('.weather-details').innerHTML = `
+                    <p>Humidity: ${obs.humidity}% • Wind: ${Math.round(obs.metric.windSpeed)} km/h ${obs.winddir}</p>
+                    <p>Rain today: ${obs.metric.precipTotal}mm</p>
+                `;
+                
+                let icon = '☀️';
+                if (obs.solarRadiation < 200) icon = '🌙';
+                else if (obs.humidity > 80) icon = '🌧️';
+                else if (obs.humidity > 60) icon = '⛅';
+                
+                document.querySelector('.weather-icon').textContent = icon;
+                
+            } catch (error) {
+                console.error('Weather fetch error:', error);
+            }
+        }
+
         updateTime();
         setInterval(updateTime, 1000);
-        // Auto-refresh the entire page every 60 seconds (60000 milliseconds)
-        // Change to 30000 for 30 seconds, or 300000 for 5 minutes
+        
+        updateWeather();
+        setInterval(updateWeather, 300000);
+        
         setTimeout(() => location.reload(), 60000);
     </script>
 </body>
