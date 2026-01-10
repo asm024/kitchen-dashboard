@@ -248,19 +248,40 @@
                 const timeMin = now.toISOString();
                 const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
                 
-                const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CONFIG.GOOGLE_CALENDAR.CALENDAR_ID)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=10`;
+                // Fetch events from all calendars
+                const allEvents = [];
+                for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
+                    try {
+                        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        
+                        if (data.items) {
+                            allEvents.push(...data.items);
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching calendar ${calendarId}:`, err);
+                    }
+                }
                 
-                const response = await fetch(url);
-                const data = await response.json();
+                // Sort all events by start time
+                allEvents.sort((a, b) => {
+                    const aStart = new Date(a.start.dateTime || a.start.date);
+                    const bStart = new Date(b.start.dateTime || b.start.date);
+                    return aStart - bStart;
+                });
+                
+                // Take top 10 events
+                const eventsToShow = allEvents.slice(0, 10);
                 
                 const calendarDiv = document.getElementById('calendarEvents');
                 
-                if (!data.items || data.items.length === 0) {
+                if (eventsToShow.length === 0) {
                     calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
                     return;
                 }
                 
-                calendarDiv.innerHTML = data.items.map(event => {
+                calendarDiv.innerHTML = eventsToShow.map(event => {
                     const start = event.start.dateTime || event.start.date;
                     const startDate = new Date(start);
                     
