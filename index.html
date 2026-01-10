@@ -81,19 +81,50 @@
             border-bottom: 1px solid rgba(255,255,255,0.1);
             padding-bottom: 10px;
         }
-        .event {
-            padding: 12px;
-            background: rgba(255,255,255,0.03);
-            border-left: 3px solid #4da6ff;
-            border-radius: 6px;
-            margin-bottom: 10px;
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
         }
-        .event-time {
-            font-size: 13px;
+        .calendar-header {
+            text-align: center;
+            font-weight: 600;
+            font-size: 12px;
+            padding: 10px 5px;
             opacity: 0.7;
-            margin-bottom: 5px;
         }
-        .event-title { font-size: 15px; font-weight: 500; }
+        .calendar-day {
+            min-height: 80px;
+            padding: 5px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            position: relative;
+        }
+        .calendar-day.other-month {
+            opacity: 0.3;
+        }
+        .calendar-day.today {
+            background: rgba(77, 166, 255, 0.2);
+            border: 1px solid #4da6ff;
+        }
+        .day-number {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        .day-events {
+            font-size: 10px;
+            line-height: 1.3;
+        }
+        .day-event {
+            background: rgba(77, 166, 255, 0.3);
+            padding: 2px 4px;
+            margin-bottom: 2px;
+            border-radius: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .tasks-section {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -178,10 +209,7 @@
             <div class="calendar">
                 <h2>📅 McKenzie Family Calendar</h2>
                 <div id="calendarEvents">
-                    <div class="event">
-                        <div class="event-time">Loading events...</div>
-                        <div class="event-title"></div>
-                    </div>
+                    <div>Loading calendar...</div>
                 </div>
             </div>
         </div>
@@ -288,13 +316,19 @@
             if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
             try {
                 const now = new Date();
-                const timeMin = now.toISOString();
-                const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
+                const year = now.getFullYear();
+                const month = now.getMonth();
+                
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                
+                const timeMin = new Date(year, month, 1).toISOString();
+                const timeMax = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
                 
                 const allEvents = [];
                 for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
                     try {
-                        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
+                        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`;
                         const response = await fetch(url);
                         const data = await response.json();
                         
@@ -306,52 +340,73 @@
                     }
                 }
                 
-                allEvents.sort((a, b) => {
-                    const aStart = new Date(a.start.dateTime || a.start.date);
-                    const bStart = new Date(b.start.dateTime || b.start.date);
-                    return aStart - bStart;
-                });
-                
-                const eventsToShow = allEvents.slice(0, 10);
-                const calendarDiv = document.getElementById('calendarEvents');
-                
-                if (eventsToShow.length === 0) {
-                    calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
-                    return;
-                }
-                
-                calendarDiv.innerHTML = eventsToShow.map(event => {
+                const eventsByDate = {};
+                allEvents.forEach(event => {
                     const start = event.start.dateTime || event.start.date;
-                    const startDate = new Date(start);
+                    const date = new Date(start);
+                    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
                     
-                    let timeStr;
-                    if (event.start.date) {
-                        timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
-                    } else {
-                        const today = new Date();
-                        const tomorrow = new Date(today);
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        
-                        if (startDate.toDateString() === today.toDateString()) {
-                            timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        } else if (startDate.toDateString() === tomorrow.toDateString()) {
-                            timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        } else {
-                            timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        }
+                    if (!eventsByDate[dateKey]) {
+                        eventsByDate[dateKey] = [];
                     }
                     
-                    return `
-                        <div class="event">
-                            <div class="event-time">${timeStr}</div>
-                            <div class="event-title">${event.summary || 'Untitled Event'}</div>
-                        </div>
-                    `;
-                }).join('');
+                    eventsByDate[dateKey].push({
+                        title: event.summary || 'Untitled',
+                        time: event.start.dateTime ? date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }) : null
+                    });
+                });
+                
+                const calendarDiv = document.getElementById('calendarEvents');
+                let html = '<div class="calendar-grid">';
+                
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                dayNames.forEach(day => {
+                    html += `<div class="calendar-header">${day}</div>`;
+                });
+                
+                const firstDayOfWeek = firstDay.getDay();
+                
+                for (let i = 0; i < firstDayOfWeek; i++) {
+                    const prevDate = new Date(year, month, -(firstDayOfWeek - i - 1));
+                    html += `<div class="calendar-day other-month"><div class="day-number">${prevDate.getDate()}</div></div>`;
+                }
+                
+                for (let day = 1; day <= lastDay.getDate(); day++) {
+                    const date = new Date(year, month, day);
+                    const dateKey = `${year}-${month}-${day}`;
+                    const isToday = date.toDateString() === now.toDateString();
+                    const events = eventsByDate[dateKey] || [];
+                    
+                    html += `<div class="calendar-day ${isToday ? 'today' : ''}">`;
+                    html += `<div class="day-number">${day}</div>`;
+                    html += '<div class="day-events">';
+                    
+                    events.slice(0, 3).forEach(event => {
+                        const timeStr = event.time ? event.time + ' ' : '';
+                        html += `<div class="day-event">${timeStr}${event.title}</div>`;
+                    });
+                    
+                    if (events.length > 3) {
+                        html += `<div class="day-event">+${events.length - 3} more</div>`;
+                    }
+                    
+                    html += '</div></div>';
+                }
+                
+                const totalCells = firstDayOfWeek + lastDay.getDate();
+                const remainingCells = 7 - (totalCells % 7);
+                if (remainingCells < 7) {
+                    for (let i = 1; i <= remainingCells; i++) {
+                        html += `<div class="calendar-day other-month"><div class="day-number">${i}</div></div>`;
+                    }
+                }
+                
+                html += '</div>';
+                calendarDiv.innerHTML = html;
                 
             } catch (error) {
                 console.error('Calendar fetch error:', error);
-                document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">Error loading calendar</div></div>';
+                document.getElementById('calendarEvents').innerHTML = '<div>Error loading calendar</div>';
             }
         }
 
