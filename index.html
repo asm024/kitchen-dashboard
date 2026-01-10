@@ -24,7 +24,7 @@ color: white;
 .container { max-width: 1800px; margin: 0 auto; }
 .header {
 display: grid;
-grid-template-columns: 1fr 1fr 1fr;
+grid-template-columns: 1fr 2fr 1fr;
 gap: 20px;
 margin-bottom: 24px;
 padding-bottom: 24px;
@@ -48,8 +48,8 @@ position: relative;
 border-radius: 16px;
 overflow: hidden;
 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-aspect-ratio: 3/4;
-max-height: 400px;
+aspect-ratio: 16/9;
+max-height: 450px;
 }
 .light-theme .photo-section {
 background: rgba(0,0,0,0.05);
@@ -84,7 +84,7 @@ align-items: center;
 justify-content: center;
 width: 100%;
 height: 100%;
-font-size: 48px;
+font-size: 64px;
 opacity: 0.3;
 }
 .weather-card {
@@ -365,7 +365,7 @@ line-height: 1.5;
 }
 @media (orientation: portrait) {
 .header { grid-template-columns: 1fr; }
-.photo-section { max-height: 300px; }
+.photo-section { max-height: 350px; }
 }
 </style>
 </head>
@@ -492,8 +492,8 @@ const photoFrame = document.getElementById('photoFrame');
 const currentImg = photoFrame.querySelector('.photo-image.active');
 const newImg = document.createElement('img');
 newImg.className = 'photo-image';
-// Add size parameter to get optimized image (width x height)
-newImg.src = photoUrls[currentPhotoIndex] + '=w800-h1200';
+// Add size parameter optimized for landscape (16:9 aspect ratio)
+newImg.src = photoUrls[currentPhotoIndex] + '=w1600-h900';
 newImg.alt = 'Family photo';
 
 newImg.onload = () => {
@@ -848,7 +848,7 @@ tasksHTML = '<div style="opacity: 0.5; font-size: 13px;">No tasks</div>';
 } else {
 tasksHTML = incompleteTasks.map(task => {
 return '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '">' +
-'<div class="task-checkbox" data-task-id="' + task.id + '" data-list-id="' + list.id + '"></div>' +
+'<div class="task-checkbox" data-task-task-id="' + task.id + '" data-list-id="' + list.id + '"></div>' +
 '<div class="task-text">' + task.title + '</div>' +
 '</div>';
 }).join('');
