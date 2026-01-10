@@ -521,8 +521,7 @@ document.getElementById('photoError').textContent = 'Not configured';
 return;
 }
 try {
-console.log('Loading photos from album:', CONFIG.GOOGLE_PHOTOS.ALBUM_ID);
-const albumId = CONFIG.GOOGLE_PHOTOS.ALBUM_ID;
+console.log('Testing Photos API - loading recent photos');
 const url = 'https://photoslibrary.googleapis.com/v1/mediaItems:search';
 const response = await fetch(url, {
 method: 'POST',
@@ -531,8 +530,7 @@ headers: {
 'Content-Type': 'application/json'
 },
 body: JSON.stringify({
-albumId: albumId,
-pageSize: 100
+pageSize: 20
 })
 });
 
@@ -545,8 +543,8 @@ return;
 }
 
 if (response.status === 403) {
-console.error('Photos access forbidden - album may not be shared');
-document.getElementById('photoError').textContent = 'Album not shared';
+console.error('Photos access forbidden');
+document.getElementById('photoError').textContent = 'API access denied';
 return;
 }
 
@@ -561,7 +559,7 @@ console.log('Loaded ' + photoUrls.length + ' photos');
 if (photoUrls.length > 0) {
 showNextPhoto();
 } else {
-document.getElementById('photoError').textContent = 'No photos in album';
+document.getElementById('photoError').textContent = 'No photos found';
 }
 } else if (data.error) {
 console.error('Photos API error:', data.error);
