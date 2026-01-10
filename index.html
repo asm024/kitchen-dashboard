@@ -1,133 +1,342 @@
-<script>
-    function updateTime() {
-        const now = new Date();
-        document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', {
-            hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-        });
-        document.getElementById('date').textContent = now.toLocaleDateString('en-AU', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        });
-    }
-
-    async function updateWeather() {
-        if (typeof CONFIG === 'undefined') return;
-        try {
-            const url = `https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
-            const response = await fetch(url);
-            const data = await response.json();
-            const obs = data.observations[0];
-            
-            document.getElementById('temp').textContent = Math.round(obs.metric.temp) + '°C';
-            document.getElementById('weatherDetails').innerHTML = `
-                Humidity: ${obs.humidity}%<br>
-                Wind: ${Math.round(obs.metric.windSpeed)} km/h ${obs.winddir}<br>
-                Rain today: ${obs.metric.precipTotal}mm
-            `;
-            
-            let icon = '☀️';
-            if (obs.solarRadiation < 200) icon = '🌙';
-            else if (obs.humidity > 80) icon = '🌧️';
-            else if (obs.humidity > 60) icon = '⛅';
-            document.getElementById('weatherIcon').textContent = icon;
-        } catch (error) {
-            console.error('Weather fetch error:', error);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Dashboard</title>
+    <script src="config.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
         }
-    }
-
-    async function updateCalendar() {
-        if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
-        try {
-            const now = new Date();
-            const timeMin = now.toISOString();
-            const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
-            
-            // First, get list of all calendars
-            const calListUrl = `https://www.googleapis.com/calendar/v3/users/me/calendarList?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}`;
-            const calListResponse = await fetch(calListUrl);
-            const calListData = await calListResponse.json();
-            
-            if (!calListData.items) {
-                document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">No calendars found</div></div>';
-                return;
-            }
-            
-            // Fetch events from all calendars
-            const allEvents = [];
-            for (const calendar of calListData.items) {
-                try {
-                    const eventsUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
-                    const eventsResponse = await fetch(eventsUrl);
-                    const eventsData = await eventsResponse.json();
-                    
-                    if (eventsData.items) {
-                        allEvents.push(...eventsData.items);
-                    }
-                } catch (err) {
-                    console.error(`Error fetching events from ${calendar.summary}:`, err);
-                }
-            }
-            
-            // Sort all events by start time
-            allEvents.sort((a, b) => {
-                const aStart = new Date(a.start.dateTime || a.start.date);
-                const bStart = new Date(b.start.dateTime || b.start.date);
-                return aStart - bStart;
-            });
-            
-            // Take top 10 events
-            const eventsToShow = allEvents.slice(0, 10);
-            
-            const calendarDiv = document.getElementById('calendarEvents');
-            
-            if (eventsToShow.length === 0) {
-                calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
-                return;
-            }
-            
-            calendarDiv.innerHTML = eventsToShow.map(event => {
-                const start = event.start.dateTime || event.start.date;
-                const startDate = new Date(start);
-                
-                let timeStr;
-                if (event.start.date) {
-                    // All-day event
-                    timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
-                } else {
-                    const today = new Date();
-                    const tomorrow = new Date(today);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    
-                    if (startDate.toDateString() === today.toDateString()) {
-                        timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                    } else if (startDate.toDateString() === tomorrow.toDateString()) {
-                        timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                    } else {
-                        timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                    }
-                }
-                
-                return `
-                    <div class="event">
-                        <div class="event-time">${timeStr}</div>
-                        <div class="event-title">${event.summary || 'Untitled Event'}</div>
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        .time { font-size: 64px; font-weight: 300; margin-bottom: 5px; }
+        .date { font-size: 24px; opacity: 0.8; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .left-column { display: flex; flex-direction: column; gap: 20px; }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+        }
+        .card h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            opacity: 0.9;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+        .weather-current {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .weather-icon { font-size: 48px; }
+        .temp { font-size: 42px; font-weight: 300; }
+        .weather-details { font-size: 14px; opacity: 0.8; line-height: 1.6; }
+        .forecast {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .forecast-day {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .forecast-day .day { font-weight: 600; margin-bottom: 5px; }
+        .forecast-day .icon { font-size: 24px; margin: 5px 0; }
+        .forecast-day .rain { opacity: 0.7; font-size: 12px; }
+        .todo-section { margin-bottom: 15px; }
+        .todo-section h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            opacity: 0.9;
+            color: #4da6ff;
+        }
+        .todo-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .calendar {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+        }
+        .calendar h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            opacity: 0.9;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+        .event {
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid #4da6ff;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .event-time {
+            font-size: 13px;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+        .event-title { font-size: 15px; font-weight: 500; }
+        @media (orientation: portrait) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="time" id="time">00:00:00</div>
+            <div class="date" id="date">Loading...</div>
+        </div>
+        <div class="grid">
+            <div class="left-column">
+                <div class="card">
+                    <h2>🌤️ Weather</h2>
+                    <div class="weather-current">
+                        <div class="weather-icon" id="weatherIcon">☀️</div>
+                        <div>
+                            <div class="temp" id="temp">24°C</div>
+                            <div class="weather-details" id="weatherDetails">Loading...</div>
+                        </div>
                     </div>
-                `;
-            }).join('');
-            
-        } catch (error) {
-            console.error('Calendar fetch error:', error);
-            document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">Error loading calendar</div></div>';
+                    <div class="forecast" id="forecast">
+                        <div class="forecast-day">
+                            <div class="day">Sun</div>
+                            <div class="icon">🌤️</div>
+                            <div class="rain">20% | 2mm</div>
+                        </div>
+                        <div class="forecast-day">
+                            <div class="day">Mon</div>
+                            <div class="icon">🌧️</div>
+                            <div class="rain">80% | 15mm</div>
+                        </div>
+                        <div class="forecast-day">
+                            <div class="day">Tue</div>
+                            <div class="icon">⛅</div>
+                            <div class="rain">40% | 5mm</div>
+                        </div>
+                        <div class="forecast-day">
+                            <div class="day">Wed</div>
+                            <div class="icon">☀️</div>
+                            <div class="rain">10% | 0mm</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>✅ To Do</h2>
+                    <div class="todo-section">
+                        <h3>Shopping</h3>
+                        <div class="todo-item">
+                            <div class="checkbox"></div>
+                            <div>Milk and bread</div>
+                        </div>
+                        <div class="todo-item">
+                            <div class="checkbox"></div>
+                            <div>Dog food</div>
+                        </div>
+                    </div>
+                    <div class="todo-section">
+                        <h3>Doing</h3>
+                        <div class="todo-item">
+                            <div class="checkbox"></div>
+                            <div>Update pricing system</div>
+                        </div>
+                        <div class="todo-item">
+                            <div class="checkbox"></div>
+                            <div>Review supplier invoices</div>
+                        </div>
+                        <div class="todo-item">
+                            <div class="checkbox"></div>
+                            <div>Organise shed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="calendar">
+                <h2>📅 McKenzie Family Calendar</h2>
+                <div id="calendarEvents">
+                    <div class="event">
+                        <div class="event-time">Loading events...</div>
+                        <div class="event-title"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', {
+                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+            });
+            document.getElementById('date').textContent = now.toLocaleDateString('en-AU', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
         }
-    }
 
-    updateTime();
-    setInterval(updateTime, 1000);
-    
-    updateWeather();
-    setInterval(updateWeather, 300000);
-    
-    updateCalendar();
-    setInterval(updateCalendar, 300000);
-    
-    setTimeout(() => location.reload(), 60000);
-</script>
+        async function updateWeather() {
+            if (typeof CONFIG === 'undefined') return;
+            try {
+                const url = `{{https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}}}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                const obs = data.observations[0];
+                
+                document.getElementById('temp').textContent = Math.round(obs.metric.temp) + '°C';
+                document.getElementById('weatherDetails').innerHTML = `
+                    Humidity: ${obs.humidity}%<br>
+                    Wind: ${Math.round(obs.metric.windSpeed)} km/h ${obs.winddir}<br>
+                    Rain today: ${obs.metric.precipTotal}mm
+                `;
+                
+                let icon = '☀️';
+                if (obs.solarRadiation < 200) icon = '🌙';
+                else if (obs.humidity > 80) icon = '🌧️';
+                else if (obs.humidity > 60) icon = '⛅';
+                document.getElementById('weatherIcon').textContent = icon;
+            } catch (error) {
+                console.error('Weather fetch error:', error);
+            }
+        }
+
+        async function updateCalendar() {
+            if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
+            try {
+                const now = new Date();
+                const timeMin = now.toISOString();
+                const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
+                
+                // First, get list of all calendars
+                const calListUrl = `{{https://www.googleapis.com/calendar/v3/users/me/calendarList?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}}}`;
+                const calListResponse = await fetch(calListUrl);
+                const calListData = await calListResponse.json();
+                
+                if (!calListData.items) {
+                    document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">No calendars found</div></div>';
+                    return;
+                }
+                
+                // Fetch events from all calendars
+                const allEvents = [];
+                for (const calendar of calListData.items) {
+                    try {
+                        const eventsUrl = `{{https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id}})}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
+                        const eventsResponse = await fetch(eventsUrl);
+                        const eventsData = await eventsResponse.json();
+                        
+                        if (eventsData.items) {
+                            allEvents.push(...eventsData.items);
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching events from ${calendar.summary}:`, err);
+                    }
+                }
+                
+                // Sort all events by start time
+                allEvents.sort((a, b) => {
+                    const aStart = new Date(a.start.dateTime || a.start.date);
+                    const bStart = new Date(b.start.dateTime || b.start.date);
+                    return aStart - bStart;
+                });
+                
+                // Take top 10 events
+                const eventsToShow = allEvents.slice(0, 10);
+                
+                const calendarDiv = document.getElementById('calendarEvents');
+                
+                if (eventsToShow.length === 0) {
+                    calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
+                    return;
+                }
+                
+                calendarDiv.innerHTML = eventsToShow.map(event => {
+                    const start = event.start.dateTime || event.start.date;
+                    const startDate = new Date(start);
+                    
+                    let timeStr;
+                    if (event.start.date) {
+                        // All-day event
+                        timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
+                    } else {
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        
+                        if (startDate.toDateString() === today.toDateString()) {
+                            timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        } else if (startDate.toDateString() === tomorrow.toDateString()) {
+                            timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        } else {
+                            timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        }
+                    }
+                    
+                    return `
+                        <div class="event">
+                            <div class="event-time">${timeStr}</div>
+                            <div class="event-title">${event.summary || 'Untitled Event'}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Calendar fetch error:', error);
+                document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">Error loading calendar</div></div>';
+            }
+        }
+
+        updateTime();
+        setInterval(updateTime, 1000);
+        
+        updateWeather();
+        setInterval(updateWeather, 300000);
+        
+        updateCalendar();
+        setInterval(updateCalendar, 300000);
+        
+        setTimeout(() => location.reload(), 60000);
+    </script>
+</body>
+</html>
