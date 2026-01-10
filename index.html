@@ -241,116 +241,43 @@
             }
         }
 
-        function parseICalDate(dateStr) {
-            // Handle both date-only (YYYYMMDD) and datetime (YYYYMMDDTHHMMSSZ) formats
-            if (dateStr.length === 8) {
-                // Date only: YYYYMMDD
-                const year = dateStr.substring(0, 4);
-                const month = dateStr.substring(4, 6);
-                const day = dateStr.substring(6, 8);
-                return new Date(year, month - 1, day);
-            } else {
-                // DateTime: YYYYMMDDTHHMMSSZ
-                const year = dateStr.substring(0, 4);
-                const month = dateStr.substring(4, 6);
-                const day = dateStr.substring(6, 8);
-                const hour = dateStr.substring(9, 11);
-                const minute = dateStr.substring(11, 13);
-                const second = dateStr.substring(13, 15);
-                
-                if (dateStr.endsWith('Z')) {
-                    return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-                } else {
-                    return new Date(year, month - 1, day, hour, minute, second);
-                }
-            }
-        }
-
-        function parseICalData(icalText) {
-            const events = [];
-            const lines = icalText.split('\n');
-            let currentEvent = null;
-            
-            for (let line of lines) {
-                line = line.trim();
-                
-                if (line === 'BEGIN:VEVENT') {
-                    currentEvent = {};
-                } else if (line === 'END:VEVENT' && currentEvent) {
-                    if (currentEvent.start) {
-                        events.push(currentEvent);
-                    }
-                    currentEvent = null;
-                } else if (currentEvent) {
-                    if (line.startsWith('DTSTART')) {
-                        const dateValue = line.split(':')[1];
-                        currentEvent.start = parseICalDate(dateValue);
-                        currentEvent.isAllDay = line.includes('VALUE=DATE');
-                    } else if (line.startsWith('DTEND')) {
-                        const dateValue = line.split(':')[1];
-                        currentEvent.end = parseICalDate(dateValue);
-                    } else if (line.startsWith('SUMMARY:')) {
-                        currentEvent.summary = line.substring(8);
-                    }
-                }
-            }
-            
-            return events;
-        }
-
         async function updateCalendar() {
-            if (typeof CONFIG === 'undefined' || !CONFIG.CALENDAR_ICALS) return;
+            if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
             try {
                 const now = new Date();
-                const weekFromNow = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+                const timeMin = now.toISOString();
+                const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
                 
-                // Fetch all iCal feeds
-                const allEvents = [];
-                for (const icalUrl of CONFIG.CALENDAR_ICALS) {
-                    try {
-                        const response = await fetch(icalUrl);
-                        const icalText = await response.text();
-                        const events = parseICalData(icalText);
-                        
-                        // Filter to only upcoming events in next 7 days
-                        const upcomingEvents = events.filter(event => {
-                            return event.start >= now && event.start <= weekFromNow;
-                        });
-                        
-                        allEvents.push(...upcomingEvents);
-                    } catch (err) {
-                        console.error('Error fetching calendar:', err);
-                    }
-                }
+                const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CONFIG.GOOGLE_CALENDAR.CALENDAR_ID)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=10`;
                 
-                // Sort by start time
-                allEvents.sort((a, b) => a.start - b.start);
-                
-                // Take top 10
-                const eventsToShow = allEvents.slice(0, 10);
+                const response = await fetch(url);
+                const data = await response.json();
                 
                 const calendarDiv = document.getElementById('calendarEvents');
                 
-                if (eventsToShow.length === 0) {
+                if (!data.items || data.items.length === 0) {
                     calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
                     return;
                 }
                 
-                calendarDiv.innerHTML = eventsToShow.map(event => {
-                    let timeStr;
-                    const today = new Date();
-                    const tomorrow = new Date(today);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
+                calendarDiv.innerHTML = data.items.map(event => {
+                    const start = event.start.dateTime || event.start.date;
+                    const startDate = new Date(start);
                     
-                    if (event.isAllDay) {
-                        timeStr = event.start.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
+                    let timeStr;
+                    if (event.start.date) {
+                        timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
                     } else {
-                        if (event.start.toDateString() === today.toDateString()) {
-                            timeStr = 'Today, ' + event.start.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        } else if (event.start.toDateString() === tomorrow.toDateString()) {
-                            timeStr = 'Tomorrow, ' + event.start.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        
+                        if (startDate.toDateString() === today.toDateString()) {
+                            timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        } else if (startDate.toDateString() === tomorrow.toDateString()) {
+                            timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
                         } else {
-                            timeStr = event.start.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + event.start.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
                         }
                     }
                     
