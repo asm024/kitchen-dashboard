@@ -219,7 +219,7 @@
         async function updateWeather() {
             if (typeof CONFIG === 'undefined') return;
             try {
-                const url = `{{https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}}}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+                const url = `https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
                 const response = await fetch(url);
                 const data = await response.json();
                 const obs = data.observations[0];
@@ -248,56 +248,24 @@
                 const timeMin = now.toISOString();
                 const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
                 
-                // First, get list of all calendars
-                const calListUrl = `{{https://www.googleapis.com/calendar/v3/users/me/calendarList?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}}}`;
-                const calListResponse = await fetch(calListUrl);
-                const calListData = await calListResponse.json();
+                const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CONFIG.GOOGLE_CALENDAR.CALENDAR_ID)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=10`;
                 
-                if (!calListData.items) {
-                    document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">No calendars found</div></div>';
-                    return;
-                }
-                
-                // Fetch events from all calendars
-                const allEvents = [];
-                for (const calendar of calListData.items) {
-                    try {
-                        const eventsUrl = `{{https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id}})}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
-                        const eventsResponse = await fetch(eventsUrl);
-                        const eventsData = await eventsResponse.json();
-                        
-                        if (eventsData.items) {
-                            allEvents.push(...eventsData.items);
-                        }
-                    } catch (err) {
-                        console.error(`Error fetching events from ${calendar.summary}:`, err);
-                    }
-                }
-                
-                // Sort all events by start time
-                allEvents.sort((a, b) => {
-                    const aStart = new Date(a.start.dateTime || a.start.date);
-                    const bStart = new Date(b.start.dateTime || b.start.date);
-                    return aStart - bStart;
-                });
-                
-                // Take top 10 events
-                const eventsToShow = allEvents.slice(0, 10);
+                const response = await fetch(url);
+                const data = await response.json();
                 
                 const calendarDiv = document.getElementById('calendarEvents');
                 
-                if (eventsToShow.length === 0) {
+                if (!data.items || data.items.length === 0) {
                     calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
                     return;
                 }
                 
-                calendarDiv.innerHTML = eventsToShow.map(event => {
+                calendarDiv.innerHTML = data.items.map(event => {
                     const start = event.start.dateTime || event.start.date;
                     const startDate = new Date(start);
                     
                     let timeStr;
                     if (event.start.date) {
-                        // All-day event
                         timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
                     } else {
                         const today = new Date();
