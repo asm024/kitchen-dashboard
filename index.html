@@ -46,6 +46,31 @@
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 30px;
         }
+        /* Portrait mode adjustments */
+        @media (orientation: portrait) {
+            body {
+                padding: 20px;
+            }
+            .header {
+                margin-bottom: 30px;
+            }
+            .time {
+                font-size: 56px;
+            }
+            .date {
+                font-size: 24px;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            .card {
+                padding: 20px;
+            }
+            .card h2 {
+                font-size: 24px;
+            }
+        }
 
         .card {
             background: rgba(255, 255, 255, 0.1);
