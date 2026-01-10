@@ -203,177 +203,174 @@
     </div>
     <script>
         function updateTime() {
-            const now = new Date();
-            document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', {
-                hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-            });
-            document.getElementById('date').textContent = now.toLocaleDateString('en-AU', {
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-            });
-        }
+    const now = new Date();
+    document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', {
+        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    });
+    document.getElementById('date').textContent = now.toLocaleDateString('en-AU', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+}
 
-        async function updateWeather() {
-            if (typeof CONFIG === 'undefined') return;
+async function updateWeather() {
+    if (typeof CONFIG === 'undefined') return;
+    try {
+        const url = `https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const obs = data.observations[0];
+        
+        document.getElementById('temp').textContent = Math.round(obs.metric.temp) + '°C';
+        document.getElementById('weatherDetails').innerHTML = `
+            Humidity: ${obs.humidity}%<br>
+            Wind: ${Math.round(obs.metric.windSpeed)} km/h ${obs.winddir}<br>
+            Rain today: ${obs.metric.precipTotal}mm
+        `;
+        
+        let icon = '☀️';
+        if (obs.solarRadiation < 200) icon = '🌙';
+        else if (obs.humidity > 80) icon = '🌧️';
+        else if (obs.humidity > 60) icon = '⛅';
+        document.getElementById('weatherIcon').textContent = icon;
+    } catch (error) {
+        console.error('Weather fetch error:', error);
+    }
+}
+
+async function updateCalendar() {
+    if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
+    try {
+        const now = new Date();
+        const timeMin = now.toISOString();
+        const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
+        
+        const allEvents = [];
+        for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
             try {
-                const url = `{{https://api.weather.com/v2/pws/observations/current?stationId=${CONFIG.WEATHER_UNDERGROUND.STATION_ID}}}&format=json&units=m&apiKey=${CONFIG.WEATHER_UNDERGROUND.API_KEY}`;
+                const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
                 const response = await fetch(url);
                 const data = await response.json();
-                const obs = data.observations[0];
                 
-                document.getElementById('temp').textContent = Math.round(obs.metric.temp) + '°C';
-                document.getElementById('weatherDetails').innerHTML = `
-                    Humidity: ${obs.humidity}%<br>
-                    Wind: ${Math.round(obs.metric.windSpeed)} km/h ${obs.winddir}<br>
-                    Rain today: ${obs.metric.precipTotal}mm
-                `;
-                
-                let icon = '☀️';
-                if (obs.solarRadiation < 200) icon = '🌙';
-                else if (obs.humidity > 80) icon = '🌧️';
-                else if (obs.humidity > 60) icon = '⛅';
-                document.getElementById('weatherIcon').textContent = icon;
-            } catch (error) {
-                console.error('Weather fetch error:', error);
+                if (data.items) {
+                    allEvents.push(...data.items);
+                }
+            } catch (err) {
+                console.error(`Error fetching calendar ${calendarId}:`, err);
             }
         }
-
-        async function updateCalendar() {
-            if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_CALENDAR) return;
-            try {
-                const now = new Date();
-                const timeMin = now.toISOString();
-                const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString();
-                
-                const allEvents = [];
-                for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
-                    try {
-                        const url = `{{https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId}})}/events?key=${CONFIG.GOOGLE_CALENDAR.API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=20`;
-                        const response = await fetch(url);
-                        const data = await response.json();
-                        
-                        if (data.items) {
-                            allEvents.push(...data.items);
-                        }
-                    } catch (err) {
-                        console.error(`Error fetching calendar ${calendarId}:`, err);
-                    }
-                }
-                
-                allEvents.sort((a, b) => {
-                    const aStart = new Date(a.start.dateTime || a.start.date);
-                    const bStart = new Date(b.start.dateTime || b.start.date);
-                    return aStart - bStart;
-                });
-                
-                const eventsToShow = allEvents.slice(0, 10);
-                const calendarDiv = document.getElementById('calendarEvents');
-                
-                if (eventsToShow.length === 0) {
-                    calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
-                    return;
-                }
-                
-                calendarDiv.innerHTML = eventsToShow.map(event => {
-                    const start = event.start.dateTime || event.start.date;
-                    const startDate = new Date(start);
-                    
-                    let timeStr;
-                    if (event.start.date) {
-                        timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
-                    } else {
-                        const today = new Date();
-                        const tomorrow = new Date(today);
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        
-                        if (startDate.toDateString() === today.toDateString()) {
-                            timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        } else if (startDate.toDateString() === tomorrow.toDateString()) {
-                            timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        } else {
-                            timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-                        }
-                    }
-                    
-                    return `
-                        <div class="event">
-                            <div class="event-time">${timeStr}</div>
-                            <div class="event-title">${event.summary || 'Untitled Event'}</div>
-                        </div>
-                    `;
-                }).join('');
-                
-            } catch (error) {
-                console.error('Calendar fetch error:', error);
-                document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">Error loading calendar</div></div>';
-            }
+        
+        allEvents.sort((a, b) => {
+            const aStart = new Date(a.start.dateTime || a.start.date);
+            const bStart = new Date(b.start.dateTime || b.start.date);
+            return aStart - bStart;
+        });
+        
+        const eventsToShow = allEvents.slice(0, 10);
+        const calendarDiv = document.getElementById('calendarEvents');
+        
+        if (eventsToShow.length === 0) {
+            calendarDiv.innerHTML = '<div class="event"><div class="event-time">No upcoming events</div></div>';
+            return;
         }
-
-        async function updateTasks() {
-            if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_TASKS) return;
-            try {
-                // First, get all task lists
-                const listsUrl = `{{https://www.googleapis.com/tasks/v1/users/@me/lists?key=${CONFIG.GOOGLE_TASKS.API_KEY}}}`;
-                const listsResponse = await fetch(listsUrl);
-                const listsData = await listsResponse.json();
+        
+        calendarDiv.innerHTML = eventsToShow.map(event => {
+            const start = event.start.dateTime || event.start.date;
+            const startDate = new Date(start);
+            
+            let timeStr;
+            if (event.start.date) {
+                timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' });
+            } else {
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
                 
-                if (!listsData.items) {
-                    document.getElementById('kanbanBoard').innerHTML = '<div class="kanban-column"><h3>No task lists found</h3></div>';
-                    return;
+                if (startDate.toDateString() === today.toDateString()) {
+                    timeStr = 'Today, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                } else if (startDate.toDateString() === tomorrow.toDateString()) {
+                    timeStr = 'Tomorrow, ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+                } else {
+                    timeStr = startDate.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + startDate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
                 }
+            }
+            
+            return `
+                <div class="event">
+                    <div class="event-time">${timeStr}</div>
+                    <div class="event-title">${event.summary || 'Untitled Event'}</div>
+                </div>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('Calendar fetch error:', error);
+        document.getElementById('calendarEvents').innerHTML = '<div class="event"><div class="event-time">Error loading calendar</div></div>';
+    }
+}
+
+async function updateTasks() {
+    if (typeof CONFIG === 'undefined' || !CONFIG.GOOGLE_TASKS) return;
+    try {
+        const listsUrl = `https://www.googleapis.com/tasks/v1/users/@me/lists?key=${CONFIG.GOOGLE_TASKS.API_KEY}`;
+        const listsResponse = await fetch(listsUrl);
+        const listsData = await listsResponse.json();
+        
+        if (!listsData.items) {
+            document.getElementById('kanbanBoard').innerHTML = '<div class="kanban-column"><h3>No task lists found</h3></div>';
+            return;
+        }
+        
+        const wantedLists = listsData.items.filter(list => 
+            CONFIG.GOOGLE_TASKS.TASK_LISTS.includes(list.title)
+        );
+        
+        const kanbanHTML = [];
+        for (const list of wantedLists) {
+            try {
+                const tasksUrl = `https://www.googleapis.com/tasks/v1/lists/${list.id}/tasks?key=${CONFIG.GOOGLE_TASKS.API_KEY}&maxResults=20`;
+                const tasksResponse = await fetch(tasksUrl);
+                const tasksData = await tasksResponse.json();
                 
-                // Filter to only the task lists we want
-                const wantedLists = listsData.items.filter(list => 
-                    CONFIG.GOOGLE_TASKS.TASK_LISTS.includes(list.title)
-                );
+                const tasks = tasksData.items || [];
+                const incompleteTasks = tasks.filter(task => task.status !== 'completed');
                 
-                // Fetch tasks for each list
-                const kanbanHTML = [];
-                for (const list of wantedLists) {
-                    try {
-                        const tasksUrl = `{{https://www.googleapis.com/tasks/v1/lists/${list.id}}}/tasks?key=${CONFIG.GOOGLE_TASKS.API_KEY}&maxResults=20`;
-                        const tasksResponse = await fetch(tasksUrl);
-                        const tasksData = await tasksResponse.json();
-                        
-                        const tasks = tasksData.items || [];
-                        const incompleteTasks = tasks.filter(task => task.status !== 'completed');
-                        
-                        kanbanHTML.push(`
-                            <div class="kanban-column">
-                                <h3>${list.title}</h3>
-                                ${incompleteTasks.length === 0 ? '<div style="opacity: 0.5; font-size: 13px;">No tasks</div>' : ''}
-                                ${incompleteTasks.map(task => `
-                                    <div class="task-item">
-                                        ${task.title}
-                                    </div>
-                                `).join('')}
+                kanbanHTML.push(`
+                    <div class="kanban-column">
+                        <h3>${list.title}</h3>
+                        ${incompleteTasks.length === 0 ? '<div style="opacity: 0.5; font-size: 13px;">No tasks</div>' : ''}
+                        ${incompleteTasks.map(task => `
+                            <div class="task-item">
+                                ${task.title}
                             </div>
-                        `);
-                    } catch (err) {
-                        console.error(`Error fetching tasks for ${list.title}:`, err);
-                    }
-                }
-                
-                document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join('');
-                
-            } catch (error) {
-                console.error('Tasks fetch error:', error);
-                document.getElementById('kanbanBoard').innerHTML = '<div class="kanban-column"><h3>Error loading tasks</h3></div>';
+                        `).join('')}
+                    </div>
+                `);
+            } catch (err) {
+                console.error(`Error fetching tasks for ${list.title}:`, err);
             }
         }
+        
+        document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join('');
+        
+    } catch (error) {
+        console.error('Tasks fetch error:', error);
+        document.getElementById('kanbanBoard').innerHTML = '<div class="kanban-column"><h3>Error loading tasks</h3></div>';
+    }
+}
 
-        updateTime();
-        setInterval(updateTime, 1000);
-        
-        updateWeather();
-        setInterval(updateWeather, 300000);
-        
-        updateCalendar();
-        setInterval(updateCalendar, 300000);
-        
-        updateTasks();
-        setInterval(updateTasks, 300000);
-        
-        setTimeout(() => location.reload(), 60000);
+updateTime();
+setInterval(updateTime, 1000);
+
+updateWeather();
+setInterval(updateWeather, 300000);
+
+updateCalendar();
+setInterval(updateCalendar, 300000);
+
+updateTasks();
+setInterval(updateTasks, 300000);
+
+setTimeout(() => location.reload(), 60000);
     </script>
 </body>
 </html>
