@@ -701,13 +701,18 @@ const month = now.getMonth();
 const currentDay = now.getDate();
 const currentDayOfWeek = now.getDay();
 const startOfWeek = new Date(year, month, currentDay - currentDayOfWeek);
-const endOfMonth = new Date(year, month + 1, 0);
 
-const monthName = now.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-document.getElementById('calendarHeader').textContent = '📅 ' + monthName;
+// End is 4 weeks (28 days) from start of week
+const endOfPeriod = new Date(startOfWeek);
+endOfPeriod.setDate(endOfPeriod.getDate() + 27); // 27 days ahead = 4 weeks total
+
+// Update header to show date range
+const startFormatted = startOfWeek.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+const endFormatted = endOfPeriod.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+document.getElementById('calendarHeader').textContent = '📅 ' + startFormatted + ' – ' + endFormatted;
 
 const timeMin = startOfWeek.toISOString();
-const timeMax = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+const timeMax = new Date(endOfPeriod.getFullYear(), endOfPeriod.getMonth(), endOfPeriod.getDate(), 23, 59, 59).toISOString();
 
 const allEvents = [];
 for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
@@ -748,29 +753,19 @@ dayNames.forEach(day => {
 html += '<div class="calendar-header">' + day + '</div>';
 });
 
-// Start from beginning of current week
-const firstDayToShow = new Date(startOfWeek);
-const lastDayToShow = new Date(endOfMonth);
-const totalDays = Math.ceil((lastDayToShow - firstDayToShow) / (1000 * 60 * 60 * 24)) + 1;
-
-// Calculate how many weeks we need to show
-const weeksToShow = Math.ceil((totalDays + firstDayToShow.getDay()) / 7);
-
-for (let week = 0; week < weeksToShow; week++) {
-for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
-const currentDate = new Date(firstDayToShow);
-currentDate.setDate(firstDayToShow.getDate() + (week * 7) + dayOfWeek);
+// Show exactly 4 weeks (28 days) starting from start of current week
+for (let dayOffset = 0; dayOffset < 28; dayOffset++) {
+const currentDate = new Date(startOfWeek);
+currentDate.setDate(startOfWeek.getDate() + dayOffset);
 
 const isToday = currentDate.toDateString() === now.toDateString();
 const isPast = currentDate < now && !isToday;
-const isOtherMonth = currentDate.getMonth() !== month;
 const dateKey = currentDate.getFullYear() + '-' + currentDate.getMonth() + '-' + currentDate.getDate();
 const events = eventsByDate[dateKey] || [];
 
 let classes = 'calendar-day';
 if (isToday) classes += ' today';
 if (isPast) classes += ' past';
-if (isOtherMonth) classes += ' other-month';
 
 html += '<div class="' + classes + '">';
 html += '<div class="day-number">' + currentDate.getDate() + '</div>';
@@ -786,7 +781,6 @@ html += '<div class="day-event more-indicator">+' + (events.length - 3) + ' more
 }
 
 html += '</div></div>';
-}
 }
 
 html += '</div>';
