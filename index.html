@@ -548,12 +548,88 @@ async function updateTasks() {
       const tasksResponse = await fetch(tasksUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } });
       const tasksData = await tasksResponse.json();
       const tasks = (tasksData.items || []).filter(t => t.status !== 'completed');
-      let tasksHTML = tasks.length === 0 ? '<div style="opacity: 0.5;">No tasks</div>' : tasks.map(task => '<div class="task-item"><div class="task-checkbox"></div><div class="task-text">' + task.title + '</div></div>').join('');
-      kanbanHTML.push('<div class="kanban-column"><h3>' + list.title + '</h3>' + tasksHTML + '</div>');
+      let tasksHTML = tasks.length === 0 ? '<div style="opacity: 0.5;">No tasks</div>' : tasks.map(task => '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '"><div class="task-checkbox"></div><div class="task-text">' + task.title + '</div></div>').join('');
+      kanbanHTML.push('<div class="kanban-column" data-list-id="' + list.id + '"><h3>' + list.title + '</h3>' + tasksHTML + '</div>');
     }
     document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join('');
+    makeDraggable();
   } catch (error) {
     console.error('Tasks error:', error);
+  }
+}
+
+function makeDraggable() {
+  const taskItems = document.querySelectorAll('.task-item');
+  const columns = document.querySelectorAll('.kanban-column');
+  
+  taskItems.forEach(item => {
+    item.draggable = true;
+    
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.dataset.taskId);
+      e.dataTransfer.setData('fromList', item.dataset.listId);
+      item.style.opacity = '0.5';
+    });
+    
+    item.addEventListener('dragend', (e) => {
+      item.style.opacity = '1';
+    });
+  });
+  
+  columns.forEach(column => {
+    column.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      column.style.background = 'rgba(77, 166, 255, 0.1)';
+    });
+    
+    column.addEventListener('dragleave', (e) => {
+      column.style.background = '';
+    });
+    
+    column.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      column.style.background = '';
+      
+      const taskId = e.dataTransfer.getData('text/plain');
+      const fromListId = e.dataTransfer.getData('fromList');
+      const toListId = column.dataset.listId;
+      
+      if (fromListId !== toListId) {
+        await moveTask(taskId, fromListId, toListId);
+        updateTasks();
+      }
+    });
+  });
+}
+
+async function moveTask(taskId, fromListId, toListId) {
+  try {
+    // Get the task
+    const getUrl = 'https://www.googleapis.com/tasks/v1/lists/' + fromListId + '/tasks/' + taskId;
+    const getResponse = await fetch(getUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } });
+    const task = await getResponse.json();
+    
+    // Create in new list
+    const createUrl = 'https://www.googleapis.com/tasks/v1/lists/' + toListId + '/tasks';
+    await fetch(createUrl, {
+      method: 'POST',
+      headers: { 
+        'Authorization': 'Bearer ' + currentAccessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ title: task.title, notes: task.notes })
+    });
+    
+    // Delete from old list
+    const deleteUrl = 'https://www.googleapis.com/tasks/v1/lists/' + fromListId + '/tasks/' + taskId;
+    await fetch(deleteUrl, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + currentAccessToken }
+    });
+  } catch (error) {
+    console.error('Move task error:', error);
   }
 }
 
