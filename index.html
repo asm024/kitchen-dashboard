@@ -430,7 +430,7 @@ document.body.className = (hour >= 6 && hour < 18) ? 'light-theme' : 'dark-theme
 
 function updateTime() {
 const now = new Date();
-document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+document.getElementById('time').textContent = now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
 document.getElementById('date').textContent = now.toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 updateTheme();
 }
