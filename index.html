@@ -170,6 +170,29 @@ border: 1px solid rgba(255,255,255,0.1);
 .dark-theme .task-item { background: rgba(255,255,255,0.08); }
 .task-checkbox { width: 20px; height: 20px; border-radius: 6px; border: 2px solid rgba(0,0,0,0.3); flex-shrink: 0; cursor: pointer; }
 .task-text { flex: 1; line-height: 1.5; }
+.calendar-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.calendar-btn {
+  padding: 8px 16px;
+  background: #4da6ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.calendar-btn:hover {
+  background: #3d96ef;
+}
+.calendar-title {
+  font-size: 22px;
+  font-weight: 600;
+}
 </style>
 </head>
 <body class="light-theme">
@@ -246,7 +269,7 @@ border: 1px solid rgba(255,255,255,0.1);
 </div>
 <script>
 let CONFIG = {};
-
+let calendarOffset = 0;
 function loadConfig() {
   const saved = localStorage.getItem('dashboardConfig');
   if (saved) {
@@ -489,24 +512,91 @@ async function updateCalendar() {
   try {
     const now = new Date();
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    const endMonth = new Date(startOfWeek);
-  endMonth.setDate(endMonth.getDate() + 27);
-  const headerText = startOfWeek.getMonth() === endMonth.getMonth() 
-  ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
-  : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-  document.getElementById('calendarHeader').textContent = '📅 ' + headerText;
-    const timeMin = startOfWeek.toISOString();
+    startOfWeek.setDate(now.getDate() - now.getDay() + (calendarOffset * 7));
+    
     const endDate = new Date(startOfWeek);
     endDate.setDate(endDate.getDate() + 27);
+    
+    const headerText = startOfWeek.getMonth() === endDate.getMonth() 
+      ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+      : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+    
+    const timeMin = startOfWeek.toISOString();
     const timeMax = endDate.toISOString();
     const allEvents = [];
+    
     for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
       const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(calendarId) + '/events?key=' + CONFIG.GOOGLE_CALENDAR.API_KEY + '&timeMin=' + timeMin + '&timeMax=' + timeMax + '&singleEvents=true&orderBy=startTime';
       const response = await fetch(url);
       const data = await response.json();
       if (data.items) allEvents.push(...data.items);
     }
+    
+    let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div>';
+    html += '<div class="calendar-grid">';
+    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => { html += '<div class="calendar-header">' + day + '</div>'; });
+    
+    for (let i = 0; i < 28; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      const isToday = date.toDateString() === now.toDateString();
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayEvents = allEvents.filter(event => {
+        const eventDate = event.start.date || event.start.dateTime?.split('T')[0];
+        return eventDate === dateStr;
+      });
+      
+      let eventsHtml = dayEvents.slice(0, 3).map(event => '<div class="day-event">' + event.summary + '</div>').join('');
+      if (dayEvents.length > 3) eventsHtml += '<div class="day-event">+' + (dayEvents.length - 3) + ' more</div>';
+      
+      html += '<div class="calendar-day' + (isToday ? ' today' : '') + '"><div class="day-number">' + date.getDate() + '</div><div class="day-events">' + eventsHtml + '</div></div>';
+    }
+    
+    html += '</div>';
+    document.getElementById('calendarEvents').innerHTML = html;
+  } catch (error) {
+    console.error('Calendar error:', error);
+  }
+}
+
+function previousMonth() {
+  calendarOffset -= 4;
+  updateCalendar();
+}
+
+function nextMonth() {
+  calendarOffset += 4;
+  updateCalendar();
+}
+    
+    let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div>';
+    html += '<div class="calendar-grid">';
+    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => { html += '<div class="calendar-header">' + day + '</div>'; });
+    
+    for (let i = 0; i < 28; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      const isToday = date.toDateString() === now.toDateString();
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayEvents = allEvents.filter(event => {
+        const eventDate = event.start.date || event.start.dateTime?.split('T')[0];
+        return eventDate === dateStr;
+      });
+      
+      let eventsHtml = dayEvents.slice(0, 3).map(event => '<div class="day-event">' + event.summary + '</div>').join('');
+      if (dayEvents.length > 3) eventsHtml += '<div class="day-event">+' + (dayEvents.length - 3) + ' more</div>';
+      
+      html += '<div class="calendar-day' + (isToday ? ' today' : '') + '"><div class="day-number">' + date.getDate() + '</div><div class="day-events">' + eventsHtml + '</div></div>';
+    }
+    
+    html += '</div>';
+    document.getElementById('calendarEvents').innerHTML = html;
+  } catch (error) {
+    console.error('Calendar error:', error);
+  }
+}
     
     let html = '<div class="calendar-grid">';
     ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => { html += '<div class="calendar-header">' + day + '</div>'; });
