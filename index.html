@@ -513,46 +513,30 @@ async function updateCalendar() {
     const now = new Date();
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay() + (calendarOffset * 7));
-    
     const endDate = new Date(startOfWeek);
     endDate.setDate(endDate.getDate() + 27);
-    
-    const headerText = startOfWeek.getMonth() === endDate.getMonth() 
-      ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
-      : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-    
+    const headerText = startOfWeek.getMonth() === endDate.getMonth() ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }) : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
     const timeMin = startOfWeek.toISOString();
     const timeMax = endDate.toISOString();
     const allEvents = [];
-    
     for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) {
       const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(calendarId) + '/events?key=' + CONFIG.GOOGLE_CALENDAR.API_KEY + '&timeMin=' + timeMin + '&timeMax=' + timeMax + '&singleEvents=true&orderBy=startTime';
       const response = await fetch(url);
       const data = await response.json();
       if (data.items) allEvents.push(...data.items);
     }
-    
-    let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div>';
-    html += '<div class="calendar-grid">';
+    let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div><div class="calendar-grid">';
     ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => { html += '<div class="calendar-header">' + day + '</div>'; });
-    
     for (let i = 0; i < 28; i++) {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
       const isToday = date.toDateString() === now.toDateString();
       const dateStr = date.toISOString().split('T')[0];
-      
-      const dayEvents = allEvents.filter(event => {
-        const eventDate = event.start.date || event.start.dateTime?.split('T')[0];
-        return eventDate === dateStr;
-      });
-      
+      const dayEvents = allEvents.filter(event => { const eventDate = event.start.date || event.start.dateTime?.split('T')[0]; return eventDate === dateStr; });
       let eventsHtml = dayEvents.slice(0, 3).map(event => '<div class="day-event">' + event.summary + '</div>').join('');
       if (dayEvents.length > 3) eventsHtml += '<div class="day-event">+' + (dayEvents.length - 3) + ' more</div>';
-      
       html += '<div class="calendar-day' + (isToday ? ' today' : '') + '"><div class="day-number">' + date.getDate() + '</div><div class="day-events">' + eventsHtml + '</div></div>';
     }
-    
     html += '</div>';
     document.getElementById('calendarEvents').innerHTML = html;
   } catch (error) {
@@ -560,15 +544,8 @@ async function updateCalendar() {
   }
 }
 
-function previousMonth() {
-  calendarOffset -= 4;
-  updateCalendar();
-}
-
-function nextMonth() {
-  calendarOffset += 4;
-  updateCalendar();
-}
+function previousMonth() { calendarOffset -= 4; updateCalendar(); }
+function nextMonth() { calendarOffset += 4; updateCalendar(); }
     
     let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div>';
     html += '<div class="calendar-grid">';
