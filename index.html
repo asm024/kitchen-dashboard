@@ -435,8 +435,10 @@ async function updateWeather() {
     else if (obs.humidity > 80) icon = '🌧️';
     else if (obs.humidity > 60) icon = '⛅';
     document.getElementById('weatherIcon').textContent = icon;
-    document.getElementById('sunrise').textContent = '6:00 AM';
-    document.getElementById('sunset').textContent = '7:30 PM';
+const sunrise = new Date(obs.epoch * 1000 + (6 * 3600000));
+const sunset = new Date(obs.epoch * 1000 + (19.5 * 3600000));
+document.getElementById('sunrise').textContent = sunrise.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+document.getElementById('sunset').textContent = sunset.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
   } catch (error) {
     console.error('Weather error:', error);
   }
