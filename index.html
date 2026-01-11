@@ -422,23 +422,32 @@ function updateTime() {
 
 async function updateWeather() {
   try {
-    const url = 'https://api.weather.com/v2/pws/observations/current?stationId=' + CONFIG.WEATHER_UNDERGROUND.STATION_ID + '&format=json&units=m&apiKey=' + CONFIG.WEATHER_UNDERGROUND.API_KEY;
-    const response = await fetch(url);
-    const data = await response.json();
-    const obs = data.observations[0];
+    // Get current weather from Weather Underground
+    const wuUrl = 'https://api.weather.com/v2/pws/observations/current?stationId=' + CONFIG.WEATHER_UNDERGROUND.STATION_ID + '&format=json&units=m&apiKey=' + CONFIG.WEATHER_UNDERGROUND.API_KEY;
+    const wuResponse = await fetch(wuUrl);
+    const wuData = await wuResponse.json();
+    const obs = wuData.observations[0];
+    
     const temp = Math.round(obs.metric.temp);
     document.getElementById('temp').textContent = temp + '°C';
     document.getElementById('feelsLike').textContent = 'Feels like ' + Math.round(obs.metric.heatIndex || temp) + '°C';
     document.getElementById('weatherDetails').innerHTML = 'Humidity: ' + obs.humidity + '%<br>Wind: ' + Math.round(obs.metric.windSpeed) + ' km/h<br>Rain: ' + obs.metric.precipTotal + 'mm';
+    
     let icon = '☀️';
     if (obs.solarRadiation < 200) icon = '🌙';
     else if (obs.humidity > 80) icon = '🌧️';
     else if (obs.humidity > 60) icon = '⛅';
     document.getElementById('weatherIcon').textContent = icon;
-const sunrise = new Date(obs.epoch * 1000 + (6 * 3600000));
-const sunset = new Date(obs.epoch * 1000 + (19.5 * 3600000));
-document.getElementById('sunrise').textContent = sunrise.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
-document.getElementById('sunset').textContent = sunset.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    // Get sunrise/sunset from OpenWeatherMap
+    const owmUrl = 'https://api.openweathermap.org/data/2.5/weather?lat=' + CONFIG.OPENWEATHERMAP.LAT + '&lon=' + CONFIG.OPENWEATHERMAP.LON + '&appid=' + CONFIG.OPENWEATHERMAP.API_KEY;
+    const owmResponse = await fetch(owmUrl);
+    const owmData = await owmResponse.json();
+    
+    const sunrise = new Date(owmData.sys.sunrise * 1000);
+    const sunset = new Date(owmData.sys.sunset * 1000);
+    document.getElementById('sunrise').textContent = sunrise.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+    document.getElementById('sunset').textContent = sunset.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
   } catch (error) {
     console.error('Weather error:', error);
   }
