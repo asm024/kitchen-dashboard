@@ -193,7 +193,6 @@ border: 1px solid rgba(255,255,255,0.1);
   font-size: 22px;
   font-weight: 600;
 }
-
   @media (max-width: 768px) {
   .time { font-size: 36px; white-space: nowrap; }
   .date { font-size: 14px; }
@@ -204,6 +203,21 @@ border: 1px solid rgba(255,255,255,0.1);
 @media (max-width: 480px) {
   .time { font-size: 28px; }
   .date { font-size: 12px; }
+}
+  .empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  opacity: 0.4;
+}
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  filter: grayscale(0.3);
+}
+.empty-state-text {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 </style>
 </head>
@@ -324,10 +338,11 @@ async function updateWeather() { try { const wuUrl = 'https://api.weather.com/v2
 
 async function updateForecast() { try { const url = 'https://api.openweathermap.org/data/2.5/forecast?lat=' + CONFIG.OPENWEATHERMAP.LAT + '&lon=' + CONFIG.OPENWEATHERMAP.LON + '&appid=' + CONFIG.OPENWEATHERMAP.API_KEY + '&units=metric'; const response = await fetch(url); const data = await response.json(); const dailyForecasts = {}; data.list.forEach(item => { const date = new Date(item.dt * 1000); const dayKey = date.toLocaleDateString('en-AU', { weekday: 'short' }); const hour = date.getHours(); if (!dailyForecasts[dayKey] || Math.abs(hour - 12) < Math.abs(dailyForecasts[dayKey].hour - 12)) { dailyForecasts[dayKey] = { day: dayKey, temp: Math.round(item.main.temp), rain: item.rain ? item.rain['3h'] || 0 : 0, pop: Math.round(item.pop * 100), icon: item.weather[0].main, hour: hour }; } }); const forecasts = Object.values(dailyForecasts).slice(0, 4); document.getElementById('forecast').innerHTML = forecasts.map(f => { let weatherIcon = '☀️'; if (f.icon === 'Rain') weatherIcon = '🌧️'; else if (f.icon === 'Clouds') weatherIcon = '☁️'; return '<div class="forecast-day"><div class="day">' + f.day + '</div><div class="icon">' + weatherIcon + '</div><div class="temp">' + f.temp + '°C</div><div class="rain">' + f.pop + '%</div></div>'; }).join(''); } catch (error) { console.error('Forecast error:', error); } }
 
-async function updateCalendar() { try { const now = new Date(); const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay() + (calendarOffset * 7)); const endDate = new Date(startOfWeek); endDate.setDate(endDate.getDate() + 27); const headerText = startOfWeek.getMonth() === endDate.getMonth() ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }) : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }); const timeMin = startOfWeek.toISOString(); const timeMax = endDate.toISOString(); const allEvents = []; for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) { const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(calendarId) + '/events?key=' + CONFIG.GOOGLE_CALENDAR.API_KEY + '&timeMin=' + timeMin + '&timeMax=' + timeMax + '&singleEvents=true&orderBy=startTime'; const response = await fetch(url); const data = await response.json(); if (data.items) allEvents.push(...data.items); } let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div><div class="calendar-grid">'; ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => { html += '<div class="calendar-header">' + day + '</div>'; }); for (let i = 0; i < 28; i++) { const date = new Date(startOfWeek); date.setDate(startOfWeek.getDate() + i); const isToday = date.toDateString() === now.toDateString(); const dateStr = date.toISOString().split('T')[0]; const dayEvents = allEvents.filter(event => { const eventDate = event.start.date || event.start.dateTime?.split('T')[0]; return eventDate === dateStr; }); let eventsHtml = dayEvents.slice(0, 3).map(event => '<div class="day-event">' + event.summary + '</div>').join(''); if (dayEvents.length > 3) eventsHtml += '<div class="day-event">+' + (dayEvents.length - 3) + ' more</div>'; html += '<div class="calendar-day' + (isToday ? ' today' : '') + '"><div class="day-number">' + date.getDate() + '</div><div class="day-events">' + eventsHtml + '</div></div>'; } html += '</div>'; document.getElementById('calendarEvents').innerHTML = html; } catch (error) { console.error('Calendar error:', error); } }
+async function updateCalendar() { try { const now = new Date(); const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay() + (calendarOffset * 7)); const endDate = new Date(startOfWeek); endDate.setDate(endDate.getDate() + 27); const headerText = startOfWeek.getMonth() === endDate.getMonth() ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }) : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }); const timeMin = startOfWeek.toISOString(); const timeMax = endDate.toISOString(); const allEvents = []; for (const calendarId of CONFIG.GOOGLE_CALENDAR.CALENDAR_IDS) { const url = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(calendarId) + '/events?key=' + CONFIG.GOOGLE_CALENDAR.API_KEY + '&timeMin=' + timeMin + '&timeMax=' + timeMax + '&singleEvents=true&orderBy=startTime'; const response = await fetch(url); const data = await response.json(); if (data.items) allEvents.push(...data.items); } let html = '<div class="calendar-controls"><button class="calendar-btn" onclick="previousMonth()">← Previous</button><button class="calendar-btn" onclick="goToToday()">Today</button><div class="calendar-title">📅 ' + headerText + '</div><button class="calendar-btn" onclick="nextMonth()">Next →</button></div><div class="calendar-grid">';'; ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => { html += '<div class="calendar-header">' + day + '</div>'; }); for (let i = 0; i < 28; i++) { const date = new Date(startOfWeek); date.setDate(startOfWeek.getDate() + i); const isToday = date.toDateString() === now.toDateString(); const dateStr = date.toISOString().split('T')[0]; const dayEvents = allEvents.filter(event => { const eventDate = event.start.date || event.start.dateTime?.split('T')[0]; return eventDate === dateStr; }); let eventsHtml = dayEvents.slice(0, 3).map(event => {   let timeStr = '';   if (event.start.dateTime) {     const eventTime = new Date(event.start.dateTime);     timeStr = eventTime.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' ';   }   return '<div class="day-event">' + timeStr + event.summary + '</div>'; }).join(''); if (dayEvents.length > 3) eventsHtml += '<div class="day-event">+' + (dayEvents.length - 3) + ' more</div>'; html += '<div class="calendar-day' + (isToday ? ' today' : '') + '"><div class="day-number">' + date.getDate() + '</div><div class="day-events">' + eventsHtml + '</div></div>'; } html += '</div>'; document.getElementById('calendarEvents').innerHTML = html; } catch (error) { console.error('Calendar error:', error); } }
 
 function previousMonth() { calendarOffset -= 4; updateCalendar(); }
 function nextMonth() { calendarOffset += 4; updateCalendar(); }
+function goToToday() { calendarOffset = 0; updateCalendar(); }
 
 async function refreshAccessToken() { try { const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: GTASK_CLIENT_ID, client_secret: GTASK_CLIENT_SECRET, refresh_token: CONFIG.GOOGLE_TASKS.REFRESH_TOKEN, grant_type: 'refresh_token' }) }); const data = await response.json(); if (data.access_token) { currentAccessToken = data.access_token; const config = JSON.parse(localStorage.getItem('dashboardConfig')); config.GOOGLE_TASKS.ACCESS_TOKEN = data.access_token; localStorage.setItem('dashboardConfig', JSON.stringify(config)); return true; } } catch (error) { console.error('Token refresh error:', error); } return false; }
 
@@ -357,13 +372,48 @@ async function refreshAccessToken() {
   return false;
 }
   
-  async function updateTasks() { try { const listsUrl = 'https://www.googleapis.com/tasks/v1/users/@me/lists'; const listsResponse = await fetch(listsUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); if (listsResponse.status === 401) { await refreshAccessToken(); return updateTasks(); } const listsData = await listsResponse.json(); if (!listsData.items) return; const wantedLists = listsData.items.filter(list => CONFIG.GOOGLE_TASKS.TASK_LISTS.includes(list.title)); let kanbanHTML = []; for (const list of wantedLists) { const tasksUrl = 'https://www.googleapis.com/tasks/v1/lists/' + list.id + '/tasks'; const tasksResponse = await fetch(tasksUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); const tasksData = await tasksResponse.json(); const tasks = (tasksData.items || []).filter(t => t.status !== 'completed'); let tasksHTML = tasks.length === 0 ? '<div style="opacity: 0.5;">No tasks</div>' : tasks.map(task => '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '"><div class="task-checkbox"></div><div class="task-text">' + task.title + '</div></div>').join(''); kanbanHTML.push('<div class="kanban-column" data-list-id="' + list.id + '"><h3>' + list.title + '</h3>' + tasksHTML + '</div>'); } document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join(''); makeDraggable(); setupTaskCheckboxes(); } catch (error) { console.error('Tasks error:', error); } }
+  async function updateTasks() { try { const listsUrl = 'https://www.googleapis.com/tasks/v1/users/@me/lists'; const listsResponse = await fetch(listsUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); if (listsResponse.status === 401) { await refreshAccessToken(); return updateTasks(); } const listsData = await listsResponse.json(); if (!listsData.items) return; const wantedLists = listsData.items.filter(list => CONFIG.GOOGLE_TASKS.TASK_LISTS.includes(list.title)); let kanbanHTML = []; for (const list of wantedLists) { const tasksUrl = 'https://www.googleapis.com/tasks/v1/lists/' + list.id + '/tasks'; const tasksResponse = await fetch(tasksUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); const tasksData = await tasksResponse.json(); const tasks = (tasksData.items || []).filter(t => t.status !== 'completed'); let tasksHTML = tasks.length === 0 ? '<div class="empty-state"><div class="empty-state-icon">✓</div><div class="empty-state-text">All clear!</div></div>' : tasks.map(task => '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '"><div class="task-checkbox"></div><div class="task-text">' + task.title + '</div></div>').join(''); kanbanHTML.push('<div class="kanban-column" data-list-id="' + list.id + '"><h3>' + list.title + '</h3>' + tasksHTML + '</div>'); } document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join(''); makeDraggable(); setupTaskCheckboxes(); } catch (error) { console.error('Tasks error:', error); } }
 
 function makeDraggable() { const taskItems = document.querySelectorAll('.task-item'); const columns = document.querySelectorAll('.kanban-column'); taskItems.forEach(item => { item.draggable = true; item.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.dataset.taskId); e.dataTransfer.setData('fromList', item.dataset.listId); item.style.opacity = '0.5'; }); item.addEventListener('dragend', (e) => { item.style.opacity = '1'; }); }); columns.forEach(column => { column.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; column.style.background = 'rgba(77, 166, 255, 0.1)'; }); column.addEventListener('dragleave', (e) => { column.style.background = ''; }); column.addEventListener('drop', async (e) => { e.preventDefault(); column.style.background = ''; const taskId = e.dataTransfer.getData('text/plain'); const fromListId = e.dataTransfer.getData('fromList'); const toListId = column.dataset.listId; if (fromListId !== toListId) { await moveTask(taskId, fromListId, toListId); updateTasks(); } }); }); }
 
 async function moveTask(taskId, fromListId, toListId) { try { const getUrl = 'https://www.googleapis.com/tasks/v1/lists/' + fromListId + '/tasks/' + taskId; const getResponse = await fetch(getUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); const task = await getResponse.json(); const createUrl = 'https://www.googleapis.com/tasks/v1/lists/' + toListId + '/tasks'; await fetch(createUrl, { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentAccessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ title: task.title, notes: task.notes }) }); const deleteUrl = 'https://www.googleapis.com/tasks/v1/lists/' + fromListId + '/tasks/' + taskId; await fetch(deleteUrl, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); } catch (error) { console.error('Move task error:', error); } }
 
-function setupTaskCheckboxes() { document.querySelectorAll('.task-checkbox').forEach(checkbox => { checkbox.addEventListener('click', async (e) => { const taskItem = e.target.closest('.task-item'); const taskId = taskItem.dataset.taskId; const listId = taskItem.dataset.listId; try { const url = 'https://www.googleapis.com/tasks/v1/lists/' + listId + '/tasks/' + taskId; await fetch(url, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + currentAccessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); taskItem.style.opacity = '0'; setTimeout(() => updateTasks(), 500); } catch (error) { console.error('Complete task error:', error); } }); }); }
+function setupTaskCheckboxes() {
+  document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('click', async (e) => {
+      const taskItem = e.target.closest('.task-item');
+      const taskId = taskItem.dataset.taskId;
+      const listId = taskItem.dataset.listId;
+      
+      // Instant visual feedback
+      e.target.innerHTML = '✓';
+      e.target.style.background = '#4da6ff';
+      e.target.style.borderColor = '#4da6ff';
+      e.target.style.color = 'white';
+      
+      try {
+        const url = 'https://www.googleapis.com/tasks/v1/lists/' + listId + '/tasks/' + taskId;
+        await fetch(url, {
+          method: 'PATCH',
+          headers: { 
+            'Authorization': 'Bearer ' + currentAccessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: 'completed' })
+        });
+        taskItem.style.opacity = '0';
+        setTimeout(() => updateTasks(), 500);
+      } catch (error) {
+        console.error('Complete task error:', error);
+        // Revert on error
+        e.target.innerHTML = '';
+        e.target.style.background = '';
+        e.target.style.borderColor = '';
+        e.target.style.color = '';
+      }
+    });
+  });
+}
 
 function initDashboard() { document.getElementById('setupPage').style.display = 'none'; document.getElementById('dashboard').classList.add('active'); updateTime(); setInterval(updateTime, 1000); updateWeather(); updateForecast(); setInterval(updateWeather, 300000); setInterval(updateForecast, 300000); updateCalendar(); setInterval(updateCalendar, 300000); loadGitHubPhotos(); setupTasksAuth(); checkTasksAuth(); }
 
