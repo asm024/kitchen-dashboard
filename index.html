@@ -320,7 +320,33 @@ function nextMonth() { calendarOffset += 4; updateCalendar(); }
 
 async function refreshAccessToken() { try { const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: GTASK_CLIENT_ID, client_secret: GTASK_CLIENT_SECRET, refresh_token: CONFIG.GOOGLE_TASKS.REFRESH_TOKEN, grant_type: 'refresh_token' }) }); const data = await response.json(); if (data.access_token) { currentAccessToken = data.access_token; const config = JSON.parse(localStorage.getItem('dashboardConfig')); config.GOOGLE_TASKS.ACCESS_TOKEN = data.access_token; localStorage.setItem('dashboardConfig', JSON.stringify(config)); return true; } } catch (error) { console.error('Token refresh error:', error); } return false; }
 
-async function updateTasks() { try { const listsUrl = 'https://www.googleapis.com/tasks/v1/users/@me/lists'; const listsResponse = await fetch(listsUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); if (listsResponse.status === 401) { await refreshAccessToken(); return updateTasks(); } const listsData = await listsResponse.json(); if (!listsData.items) return; const wantedLists = listsData.items.filter(list => CONFIG.GOOGLE_TASKS.TASK_LISTS.includes(list.title)); let kanbanHTML = []; for (const list of wantedLists) { const tasksUrl = 'https://www.googleapis.com/tasks/v1/lists/' + list.id + '/tasks'; const tasksResponse = await fetch(tasksUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); const tasksData = await tasksResponse.json(); const tasks = (tasksData.items || []).filter(t => t.status !== 'completed'); let tasksHTML = tasks.length === 0 ? '<div style="opacity: 0.5;">No tasks</div>' : tasks.map(task => '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '"><div class="task-checkbox"></div><div class="task-text">' + task.title + '</div></div>').join(''); kanbanHTML.push('<div class="kanban-column" data-list-id="' + list.id + '"><h3>' + list.title + '</h3>' + tasksHTML + '</div>'); } document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join(''); makeDraggable(); setupTaskCheckboxes(); } catch (error) { console.error('Tasks error:', error); } }
+async function refreshAccessToken() {
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GTASK_CLIENT_ID,
+        client_secret: GTASK_CLIENT_SECRET,
+        refresh_token: CONFIG.GOOGLE_TASKS.REFRESH_TOKEN,
+        grant_type: 'refresh_token'
+      })
+    });
+    const data = await response.json();
+    if (data.access_token) {
+      currentAccessToken = data.access_token;
+      const config = JSON.parse(localStorage.getItem('dashboardConfig'));
+      config.GOOGLE_TASKS.ACCESS_TOKEN = data.access_token;
+      localStorage.setItem('dashboardConfig', JSON.stringify(config));
+      return true;
+    }
+  } catch (error) {
+    console.error('Token refresh error:', error);
+  }
+  return false;
+}
+  
+  async function updateTasks() { try { const listsUrl = 'https://www.googleapis.com/tasks/v1/users/@me/lists'; const listsResponse = await fetch(listsUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); if (listsResponse.status === 401) { await refreshAccessToken(); return updateTasks(); } const listsData = await listsResponse.json(); if (!listsData.items) return; const wantedLists = listsData.items.filter(list => CONFIG.GOOGLE_TASKS.TASK_LISTS.includes(list.title)); let kanbanHTML = []; for (const list of wantedLists) { const tasksUrl = 'https://www.googleapis.com/tasks/v1/lists/' + list.id + '/tasks'; const tasksResponse = await fetch(tasksUrl, { headers: { 'Authorization': 'Bearer ' + currentAccessToken } }); const tasksData = await tasksResponse.json(); const tasks = (tasksData.items || []).filter(t => t.status !== 'completed'); let tasksHTML = tasks.length === 0 ? '<div style="opacity: 0.5;">No tasks</div>' : tasks.map(task => '<div class="task-item" draggable="true" data-task-id="' + task.id + '" data-list-id="' + list.id + '"><div class="task-checkbox"></div><div class="task-text">' + task.title + '</div></div>').join(''); kanbanHTML.push('<div class="kanban-column" data-list-id="' + list.id + '"><h3>' + list.title + '</h3>' + tasksHTML + '</div>'); } document.getElementById('kanbanBoard').innerHTML = kanbanHTML.join(''); makeDraggable(); setupTaskCheckboxes(); } catch (error) { console.error('Tasks error:', error); } }
 
 function makeDraggable() { const taskItems = document.querySelectorAll('.task-item'); const columns = document.querySelectorAll('.kanban-column'); taskItems.forEach(item => { item.draggable = true; item.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.dataset.taskId); e.dataTransfer.setData('fromList', item.dataset.listId); item.style.opacity = '0.5'; }); item.addEventListener('dragend', (e) => { item.style.opacity = '1'; }); }); columns.forEach(column => { column.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; column.style.background = 'rgba(77, 166, 255, 0.1)'; }); column.addEventListener('dragleave', (e) => { column.style.background = ''; }); column.addEventListener('drop', async (e) => { e.preventDefault(); column.style.background = ''; const taskId = e.dataTransfer.getData('text/plain'); const fromListId = e.dataTransfer.getData('fromList'); const toListId = column.dataset.listId; if (fromListId !== toListId) { await moveTask(taskId, fromListId, toListId); updateTasks(); } }); }); }
 
