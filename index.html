@@ -490,7 +490,12 @@ async function updateCalendar() {
     const now = new Date();
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
-    document.getElementById('calendarHeader').textContent = '📅 ' + now.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+    const endMonth = new Date(startOfWeek);
+  endMonth.setDate(endMonth.getDate() + 27);
+  const headerText = startOfWeek.getMonth() === endMonth.getMonth() 
+  ? startOfWeek.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+  : startOfWeek.toLocaleDateString('en-AU', { month: 'short' }) + ' - ' + endMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+  document.getElementById('calendarHeader').textContent = '📅 ' + headerText;
     const timeMin = startOfWeek.toISOString();
     const endDate = new Date(startOfWeek);
     endDate.setDate(endDate.getDate() + 27);
@@ -630,6 +635,32 @@ async function moveTask(taskId, fromListId, toListId) {
   } catch (error) {
     console.error('Move task error:', error);
   }
+}
+
+function setupTaskCheckboxes() {
+  document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('click', async (e) => {
+      const taskItem = e.target.closest('.task-item');
+      const taskId = taskItem.dataset.taskId;
+      const listId = taskItem.dataset.listId;
+      
+      try {
+        const url = 'https://www.googleapis.com/tasks/v1/lists/' + listId + '/tasks/' + taskId;
+        await fetch(url, {
+          method: 'PATCH',
+          headers: { 
+            'Authorization': 'Bearer ' + currentAccessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: 'completed' })
+        });
+        taskItem.style.opacity = '0';
+        setTimeout(() => updateTasks(), 500);
+      } catch (error) {
+        console.error('Complete task error:', error);
+      }
+    });
+  });
 }
 
 function initDashboard() {
